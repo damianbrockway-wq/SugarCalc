@@ -390,6 +390,27 @@
       .app-wrap { max-width: 1440px !important; }
       .tab-content { padding: 24px 40px 40px !important; }
     }
+
+    /* ── Print / Export CSS ────────────────────────────── */
+    @media print {
+      body { background: #fff !important; color: #111 !important; font-family: Georgia, serif; }
+      .app-header, .tab-bar-wrap, .recap-no-print { display: none !important; }
+      .recap-printable { display: block !important; padding: 0 !important; }
+      .recap-stat-card { background: #f8f8f8 !important; border: 1px solid #ddd !important; color: #111 !important; break-inside: avoid; }
+      .recap-stat-val  { color: #1a6e52 !important; }
+      .recap-stat-lbl  { color: #555 !important; }
+      .recap-section   { border: 1px solid #ddd !important; background: #f8f8f8 !important; break-inside: avoid; margin-bottom: 12px; }
+      .recap-header    { color: #111 !important; }
+      .recap-sub       { color: #444 !important; }
+      .recap-muted     { color: #666 !important; }
+      .recap-yoy-up    { color: #1a6e52 !important; }
+      .recap-yoy-dn    { color: #c0392b !important; }
+      .recap-print-btn { display: none !important; }
+      .app-main        { padding: 0 !important; }
+      .tab-content     { padding: 0 !important; }
+      svg text         { fill: #333 !important; }
+      @page { margin: 0.7in; size: letter portrait; }
+    }
   </style>
 </head>
 <body>
@@ -1682,6 +1703,42 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
         </div>
         <InfoRow label={t(lang,'weight')} value="~11.65 lbs/gallon at 66° Brix" />
       </div>
+
+      {/* ── Canning ── */}
+      <div className="card">
+        <div className="card-title"><CardIcon bg="#2b1a0d" icon="package" />Canning &amp; Bottling</div>
+
+        <div className="result-box orange" style={{ marginBottom:14 }}>
+          <div style={{ textAlign:'center' }}>
+            <div style={{ fontSize:12, color:'#e0a44a', fontWeight:700, letterSpacing:'0.08em', marginBottom:4 }}>CAN BETWEEN</div>
+            <div style={{ fontSize:38, fontWeight:800, color:'#e0a44a', lineHeight:1 }}>180 – 190°F</div>
+            <div style={{ fontSize:12, color:'#5a6a7a', marginTop:6 }}>82 – 88°C</div>
+          </div>
+        </div>
+
+        <div style={{ background:'#0f1720', borderRadius:10, padding:'12px 14px', marginBottom:10, border:'1px solid #1a2840' }}>
+          <div style={{ fontWeight:600, color:'#c9d1d9', fontSize:14, marginBottom:8 }}>Why this range matters</div>
+          <div style={{ fontSize:13, color:'#8b949e', lineHeight:1.7 }}>
+            <span style={{ color:'#3fb950', fontWeight:600 }}>Above 180°F</span> — hot enough to sterilize the container and create a vacuum seal as the syrup cools.<br/>
+            <span style={{ color:'#f0883e', fontWeight:600 }}>Below 190°F</span> — avoids driving off moisture that would push syrup above legal density, and prevents forming new niter (calcium malate crystals) that re-form above ~190°F even in already-filtered syrup.
+          </div>
+        </div>
+
+        {[
+          { title:'Check density first', body:'Always verify syrup is 66.0–68.9° Brix before canning. Density that was correct hot may read differently once cooled — use the Density Check above with a temperature correction.' },
+          { title:'Heat slowly, stir gently', body:'Bring syrup back to temperature on low-medium heat. Stir occasionally but avoid vigorous boiling — you don\'t want to concentrate it further or create new niter.' },
+          { title:'Fill hot, cap immediately', body:'Fill containers to within ¼" of the top. Cap immediately and tip upside down for 1–2 minutes to sterilize the lid seal. Return upright and let cool undisturbed.' },
+          { title:'Glass vs. plastic', body:'Glass is ideal — holds temperature longer, shows off color, and has no flavor transfer. Food-grade plastic (HDPE) jugs are fine for short-term storage. Avoid thin plastic that distorts when filled hot.' },
+          { title:'Shelf life', body:'Properly canned syrup keeps 1–4 years unopened at room temperature. Once opened, refrigerate and use within 1 year. If mold appears, bring to 180°F+, re-filter if needed, and re-can.' },
+        ].map((item, i) => (
+          <TipItem key={i}><span style={{ color:'#c9d1d9', fontWeight:600 }}>{item.title} — </span>{item.body}</TipItem>
+        ))}
+
+        <div style={{ background:'#081622', borderRadius:8, padding:'10px 12px', marginTop:8, fontSize:12, color:'#5a6a7a', lineHeight:1.7 }}>
+          <span style={{ color:'#8b949e', fontWeight:600 }}>Container yield guide: </span>
+          250 mL ≈ 0.066 gal · 500 mL ≈ 0.132 gal · 1 L ≈ 0.264 gal · 1 qt ≈ 0.25 gal · ½ gal ≈ 0.5 gal · 1 gal jug = 1 gal
+        </div>
+      </div>
     </div>
   );
 }
@@ -2039,6 +2096,28 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
     const next = {...autoCopy, [field]:val};
     setAutoCopy(next); ls.set('sg_autocopy', next);
   };
+
+  // ── Collection Points ────────────────────────────────────────────────────
+  const PT_COLORS = ['#ff7b54','#a78bfa','#f472b6','#34d399','#fbbf24','#60a5fa'];
+  const [cpoints,      setCpoints]      = useState(() => ls.get('sg_cpoints', []));
+  const [activePoint,  setActivePoint]  = useState(null); // null = All/shared
+  const [newPtName,    setNewPtName]    = useState('');
+  const [showCPSetup,  setShowCPSetup]  = useState(false);
+
+  const addCpoint = () => {
+    const name = newPtName.trim();
+    if (!name) return;
+    const id = 'pt_' + Date.now();
+    const color = PT_COLORS[cpoints.length % PT_COLORS.length];
+    const next = [...cpoints, { id, name, color }];
+    setCpoints(next); ls.set('sg_cpoints', next);
+    setNewPtName('');
+  };
+  const removeCpoint = id => {
+    const next = cpoints.filter(p => p.id !== id);
+    setCpoints(next); ls.set('sg_cpoints', next);
+    if (activePoint === id) setActivePoint(null);
+  };
   const empty = { sapCollected:[], syrupMade:[], sapRO:[], sapEvap:[] };
   const slog  = logs[season] || empty;
 
@@ -2067,15 +2146,18 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
   const GRADE_COLORS = { 'Golden Delicate':'#f5c842','Amber Rich':'#e0a44a','Dark Robust':'#c47a28','Very Dark Strong':'#8b4513' };
 
   function LogSection({ label, logKey, color, icon, showGrade=false, showBrix=false, onAdd=null }) {
-    const entries = slog[logKey]||[];
-    const tot2    = entries.reduce((s,e)=>s+(parseFloat(e.val)||0),0);
+    const entries        = slog[logKey] || [];
+    // Filter displayed entries by active collection point (null = show all)
+    const displayEntries = activePoint
+      ? entries.filter(e => e.point === activePoint)
+      : entries;
+    const tot2    = displayEntries.reduce((s,e)=>s+(parseFloat(e.val)||0),0);
     const [val,   setVal]   = useState('');
     const [note,  setNote]  = useState('');
     const [grade, setGrade] = useState('—');
     const [brix,  setBrix]  = useState('');
     const [editDateId, setEditDateId] = useState(null);
     const Ic2 = I[icon];
-    // Convert a locale date string to YYYY-MM-DD for <input type="date">
     const toISO = ds => {
       const d = new Date(ds);
       if (isNaN(d)) return '';
@@ -2085,23 +2167,24 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
     const add = () => {
       if (!val) return;
       const entry = {
-        id: Date.now(),
-        date: new Date().toLocaleDateString(),
-        val: parseFloat(val),
+        id:    Date.now(),
+        date:  new Date().toLocaleDateString(),
+        val:   parseFloat(val),
         note,
         grade: showGrade ? grade : undefined,
-        brix: showBrix && brix ? parseFloat(brix) : undefined,
+        brix:  showBrix && brix ? parseFloat(brix) : undefined,
+        point: activePoint || undefined, // tag with active collection point
       };
       updLog(logKey, [...entries, entry]);
       if (onAdd) onAdd(parseFloat(val), entry.date, note);
       setVal(''); setNote(''); setGrade('—'); setBrix('');
     };
-    const updateDate = (i, isoVal) => {
+    // ID-based date edit (safe when entries are filtered)
+    const updateDate = (id, isoVal) => {
       if (!isoVal) return;
-      // Parse as local noon to avoid UTC-offset date shifts
       const [y,m,d] = isoVal.split('-').map(Number);
       const newDate = new Date(y, m-1, d).toLocaleDateString();
-      updLog(logKey, entries.map((x,j) => j===i ? {...x, date:newDate} : x));
+      updLog(logKey, entries.map(x => x.id===id ? {...x, date:newDate} : x));
       setEditDateId(null);
     };
     return (
@@ -2109,7 +2192,10 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <div className="card-icon" style={{ background:color+'33', width:36, height:36 }}>{Ic2?<Ic2 size={18} color={color}/>:null}</div>
-            <span style={{ fontWeight:600, fontSize:16 }}>{label}</span>
+            <div>
+              <span style={{ fontWeight:600, fontSize:16 }}>{label}</span>
+              {activePoint && (() => { const pt=cpoints.find(p=>p.id===activePoint); return pt ? <span style={{ fontSize:11, color:pt.color, fontWeight:700, marginLeft:6 }}>· {pt.name}</span> : null; })()}
+            </div>
           </div>
           <span className="badge" style={{ background:color, color:'#fff' }}>{fmt(tot2,1)} {u}</span>
         </div>
@@ -2136,18 +2222,24 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
             </select>
           </div>
         )}
-        {entries.length===0 && <div style={{ textAlign:'center', color:'#3d5068', fontSize:13, padding:'10px 0' }}>{t(lang,'noEntries')}</div>}
-        {entries.map((e,i)=>(
+        {displayEntries.length===0 && (
+          <div style={{ textAlign:'center', color:'#3d5068', fontSize:13, padding:'10px 0' }}>
+            {activePoint ? `No entries for this collection point yet.` : t(lang,'noEntries')}
+          </div>
+        )}
+        {displayEntries.map((e)=>(
           <div key={e.id} className="log-entry">
             <div style={{ flex:1 }}>
               <span style={{ fontWeight:600 }}>{fmt(e.val,1)} {u}</span>
               {e.brix != null && <span style={{ fontSize:11, fontWeight:600, color:'#2dd4a7', background:'#2dd4a722', borderRadius:6, padding:'1px 7px', marginLeft:6 }}>{e.brix.toFixed(1)}°Bx</span>}
               {e.grade && e.grade !== '—' && <span style={{ fontSize:11, fontWeight:700, color: GRADE_COLORS[e.grade]||'#e0a44a', background:(GRADE_COLORS[e.grade]||'#e0a44a')+'22', borderRadius:6, padding:'1px 7px', marginLeft:6 }}>{GRADE_LABELS[e.grade]||e.grade}</span>}
+              {/* Collection point badge — only show in All view to avoid redundancy */}
+              {!activePoint && e.point && (() => { const pt=cpoints.find(p=>p.id===e.point); return pt ? <span style={{ fontSize:10, fontWeight:700, color:pt.color, background:pt.color+'22', borderRadius:5, padding:'1px 6px', marginLeft:5 }}>{pt.name}</span> : null; })()}
               {e.note && <span style={{ color:'#5a6a7a', fontSize:13 }}> · {e.note}</span>}
               {editDateId === e.id ? (
                 <input type="date" autoFocus
                   defaultValue={toISO(e.date)}
-                  onChange={ev => updateDate(i, ev.target.value)}
+                  onChange={ev => updateDate(e.id, ev.target.value)}
                   onBlur={() => setEditDateId(null)}
                   style={{ background:'#081622', border:'1px solid #58a6ff', borderRadius:6, padding:'1px 6px', color:'#c9d1d9', fontSize:12, marginLeft:8, outline:'none', colorScheme:'dark' }}
                 />
@@ -2159,7 +2251,7 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
                 </span>
               )}
             </div>
-            <button className="delete-btn" onClick={()=>updLog(logKey,entries.filter((_,j)=>j!==i))}><I.x size={15} /></button>
+            <button className="delete-btn" onClick={()=>updLog(logKey, entries.filter(x=>x.id!==e.id))}><I.x size={15} /></button>
           </div>
         ))}
       </div>
@@ -2211,6 +2303,42 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
         </button>
       </div>
 
+      {/* ── Collection Points setup ── */}
+      <div className="card" style={{ marginBottom:8 }}>
+        <div className="collapsible-header" onClick={()=>setShowCPSetup(s=>!s)}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <CardIcon bg="#1a1030" icon="circle" />
+            <span style={{ fontWeight:600 }}>Collection Points</span>
+            {cpoints.length > 0 && <span style={{ fontSize:12, color:'#5a6a7a' }}>{cpoints.length} defined</span>}
+          </div>
+          {showCPSetup ? <I.chevUp size={16} color="#8b949e" /> : <I.chevDown size={16} color="#8b949e" />}
+        </div>
+        {showCPSetup && (
+          <div style={{ marginTop:12 }}>
+            <div style={{ fontSize:13, color:'#5a6a7a', marginBottom:10, lineHeight:1.5 }}>
+              Track sap from separate pumphouses or gathering tanks. Select a collection point before logging to tag that entry — or leave it on <strong style={{ color:'#8a9ab0' }}>All</strong> for shared/unassigned entries.
+            </div>
+            {cpoints.map(pt => (
+              <div key={pt.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:'1px solid #131e2c' }}>
+                <div style={{ width:11, height:11, borderRadius:'50%', background:pt.color, flexShrink:0 }} />
+                <span style={{ flex:1, fontWeight:600, fontSize:14, color:'#e2eaf4' }}>{pt.name}</span>
+                <button onClick={()=>removeCpoint(pt.id)} style={{ background:'none', border:'none', color:'#3d5068', cursor:'pointer', fontSize:12, textDecoration:'underline' }}>Remove</button>
+              </div>
+            ))}
+            {cpoints.length < 6 && (
+              <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                <input type="text" value={newPtName} onChange={e=>setNewPtName(e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&addCpoint()}
+                  placeholder="e.g. Pumphouse 1, North Woods…"
+                  style={{ flex:1 }} />
+                <button onClick={addCpoint} style={{ background:'#2dd4a7', border:'none', borderRadius:8, padding:'0 16px', fontWeight:700, fontSize:14, color:'#07090f', cursor:'pointer' }}>Add</button>
+              </div>
+            )}
+            {cpoints.length === 6 && <div style={{ fontSize:12, color:'#3d5068', marginTop:8 }}>Maximum 6 collection points.</div>}
+          </div>
+        )}
+      </div>
+
       {/* Auto-copy settings */}
       <div className="card" style={{ marginBottom:8 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
@@ -2232,6 +2360,23 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
           </label>
         </div>
       </div>
+
+      {/* ── Collection Point filter pills (only shown when points are defined) ── */}
+      {cpoints.length > 0 && (
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12, padding:'2px 0' }}>
+          <button onClick={()=>setActivePoint(null)}
+            style={{ background: activePoint===null ? '#2dd4a7' : '#0f1720', border:`1px solid ${activePoint===null ? '#2dd4a7' : '#1e2d3d'}`, borderRadius:20, padding:'5px 14px', color: activePoint===null ? '#07090f' : '#5a6a7a', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.15s' }}>
+            All
+          </button>
+          {cpoints.map(pt => (
+            <button key={pt.id} onClick={()=>setActivePoint(pt.id)}
+              style={{ background: activePoint===pt.id ? pt.color+'30' : '#0f1720', border:`1px solid ${activePoint===pt.id ? pt.color : '#1e2d3d'}`, borderRadius:20, padding:'5px 14px', color: activePoint===pt.id ? pt.color : '#5a6a7a', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ width:8, height:8, borderRadius:'50%', background:pt.color, display:'inline-block' }} />
+              {pt.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <LogSection label={t(lang,'sapCollected')} logKey="sapCollected" color="#2dd4a7" icon="package" showBrix={true}
         onAdd={(amount, date, note) => {
@@ -2324,8 +2469,141 @@ function EquipTab({ lang='en' }) {
   };
   const cColor = { Good:'#3fb950', Fair:'#e0a44a', Poor:'#f85149' };
 
+  // ── Transfer Time Calculator state ───────────────────────────────────────
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [pumpGPM,  setPumpGPM]  = useState(() => ls.get('sg_pump_gpm',    28));
+  const [tankGal,  setTankGal]  = useState(() => ls.get('sg_pump_tank',  300));
+  const [lineLen,  setLineLen]  = useState(() => ls.get('sg_pump_line',    0));
+  const [liftFt,   setLiftFt]   = useState(() => ls.get('sg_pump_lift',    0));
+  const [setupMin, setSetupMin] = useState(() => ls.get('sg_pump_setup',   4));
+  const saveP = (key, setter) => v => { setter(v); ls.set(key, v); };
+
+  // Physics model: calibrated to match 800 ft + 12 ft lift → 18 min for 300 gal at 28 GPM
+  const flowFactor    = Math.max(0.30, 1 - (lineLen / 1000) * 0.25 - (liftFt / 50) * 0.30);
+  const effectiveGPM  = pumpGPM * flowFactor;
+  const baseFillMin   = tankGal / Math.max(pumpGPM, 0.1);
+  const realFillMin   = tankGal / Math.max(effectiveGPM, 0.1);
+  const baseTotal     = baseFillMin + setupMin;
+  const realisticTotal= realFillMin + setupMin;
+  const extraMin      = realisticTotal - baseTotal;
+
+  // Season haul estimate from log data
+  const curSeason = ls.get('sg_season', new Date().getFullYear());
+  const sapT      = ((ls.get('sg_logs2',{})[curSeason]||{}).sapCollected||[])
+                      .reduce((s,e)=>s+(parseFloat(e.val)||0),0);
+  const numHauls  = sapT > 0 ? Math.ceil(sapT / (tankGal * 0.90)) : null; // haul at 90% full
+  const totalHaulHrs = numHauls ? (numHauls * realisticTotal / 60) : null;
+
   return (
     <div>
+      {/* ── Transfer Time Calculator ── */}
+      <div className="card" style={{ marginBottom:14 }}>
+        <div className="collapsible-header" onClick={()=>setShowTransfer(s=>!s)}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <CardIcon bg="#0d1a2b" icon="clock" />
+            <span style={{ fontWeight:600 }}>Transfer Time Calculator</span>
+          </div>
+          {showTransfer ? <I.chevUp size={16} color="#8b949e" /> : <I.chevDown size={16} color="#8b949e" />}
+        </div>
+        {showTransfer && (
+          <div style={{ marginTop:14 }}>
+            <div style={{ fontSize:13, color:'#5a6a7a', marginBottom:12, lineHeight:1.5 }}>
+              Enter your pump and line specs to get a realistic haul time estimate.
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+              <div>
+                <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Pump flow (GPM)</div>
+                <input type="number" value={pumpGPM} min={1} max={500} step={1}
+                  onChange={e => saveP('sg_pump_gpm', setPumpGPM)(parseFloat(e.target.value)||28)}
+                  style={{ width:'100%', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Tank size (gal)</div>
+                <input type="number" value={tankGal} min={10} max={10000} step={50}
+                  onChange={e => saveP('sg_pump_tank', setTankGal)(parseFloat(e.target.value)||300)}
+                  style={{ width:'100%', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Line length (ft)</div>
+                <input type="number" value={lineLen} min={0} max={5000} step={50}
+                  onChange={e => saveP('sg_pump_line', setLineLen)(parseFloat(e.target.value)||0)}
+                  style={{ width:'100%', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Vertical lift (ft)</div>
+                <input type="number" value={liftFt} min={0} max={200} step={1}
+                  onChange={e => saveP('sg_pump_lift', setLiftFt)(parseFloat(e.target.value)||0)}
+                  style={{ width:'100%', boxSizing:'border-box' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Setup time (min)</div>
+                <input type="number" value={setupMin} min={0} max={30} step={1}
+                  onChange={e => saveP('sg_pump_setup', setSetupMin)(parseFloat(e.target.value)||4)}
+                  style={{ width:'100%', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:2 }}>
+                <div style={{ fontSize:12, color:'#3d5068', lineHeight:1.4 }}>
+                  {effectiveGPM < pumpGPM
+                    ? `Line + lift reduces flow to ~${effectiveGPM.toFixed(0)} GPM`
+                    : 'No friction/lift penalty'}
+                </div>
+              </div>
+            </div>
+
+            {/* Results */}
+            <div style={{ background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:12, padding:'12px 14px' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:11, color:'#3d5068', marginBottom:2 }}>Theoretical</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:'#8a9ab0' }}>{baseTotal.toFixed(0)} <span style={{ fontSize:13, fontWeight:400 }}>min</span></div>
+                  <div style={{ fontSize:11, color:'#3d5068' }}>{baseFillMin.toFixed(0)} fill + {setupMin} setup</div>
+                </div>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:11, color:'#2dd4a7', marginBottom:2, fontWeight:600 }}>Realistic</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:'#2dd4a7' }}>{realisticTotal.toFixed(0)} <span style={{ fontSize:13, fontWeight:400 }}>min</span></div>
+                  <div style={{ fontSize:11, color:'#3d5068' }}>{realFillMin.toFixed(0)} fill + {setupMin} setup{extraMin > 0.5 ? ` (+${extraMin.toFixed(0)} friction)` : ''}</div>
+                </div>
+              </div>
+
+              {numHauls && (
+                <div style={{ borderTop:'1px solid #1e2d3d', paddingTop:10 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                    <span style={{ fontSize:13, color:'#8a9ab0' }}>Hauls this season ({curSeason})</span>
+                    <span style={{ fontWeight:700, fontSize:14, color:'#e2eaf4' }}>{numHauls} hauls</span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                    <span style={{ fontSize:13, color:'#8a9ab0' }}>Total haul time</span>
+                    <span style={{ fontWeight:700, fontSize:14, color:'#e2eaf4' }}>{totalHaulHrs.toFixed(1)} hrs</span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                    <span style={{ fontSize:13, color:'#8a9ab0' }}>Avg gal/haul</span>
+                    <span style={{ fontWeight:700, fontSize:14, color:'#e2eaf4' }}>{(sapT / numHauls).toFixed(0)} gal</span>
+                  </div>
+                  <div style={{ fontSize:11, color:'#3d5068', marginTop:8, lineHeight:1.5 }}>
+                    Based on {sapT.toFixed(0)} gal logged · hauling at 90% tank capacity ({(tankGal * 0.9).toFixed(0)} gal)
+                  </div>
+                </div>
+              )}
+              {!numHauls && (
+                <div style={{ fontSize:12, color:'#3d5068', textAlign:'center', paddingTop:6 }}>
+                  Log sap in the Log tab to see seasonal haul estimates.
+                </div>
+              )}
+            </div>
+
+            {/* Smart scheduling tip */}
+            {numHauls && totalHaulHrs && (
+              <div style={{ background:'rgba(45,212,167,0.06)', border:'1px solid rgba(45,212,167,0.2)', borderRadius:10, padding:'10px 12px', marginTop:10 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:'#2dd4a7', marginBottom:4 }}>Smart Scheduling Tip</div>
+                <div style={{ fontSize:12, color:'#5a6a7a', lineHeight:1.5 }}>
+                  Hauling at 90% full ({(tankGal * 0.9).toFixed(0)} gal) instead of daily keeps your runs fewer and longer. Coordinate hauls with forecast sap-run days to minimize idle trips.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <button onClick={()=>setShow(s=>!s)} style={{ background:'transparent', border:'1px solid #2dd4a7', color:'#2dd4a7', borderRadius:10, padding:'13px 20px', fontSize:15, fontWeight:600, width:'100%', marginBottom:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
         <I.wrench size={16} color="#2dd4a7" /> {t(lang,'addEquipItem')}
       </button>
@@ -3052,6 +3330,24 @@ function LinesTab({ lang='en' }) {
   const [showCoordPanel, setShowCoordPanel] = React.useState(false);
   const [coordLat, setCoordLat]         = React.useState('');
   const [coordLon, setCoordLon]         = React.useState('');
+  // Materials estimator
+  const [vacSystem, setVacSystem] = React.useState(() => ls.get('sg_vacsystem', false));
+  const [mainSize,  setMainSize]  = React.useState(() => ls.get('sg_mainsize', '3/4"'));
+  const [showMatPrices, setShowMatPrices] = React.useState(false);
+  const [matPrices, setMatPrices] = React.useState(() => ls.get('sg_matprices', {
+    lateral: 0.07,   // $/ft  — 5/16" or 3/16"
+    mainline: 0.65,  // $/ft  — 3/4" poly
+    drop: 0.18,      // $/ft  — 3/16" drop tubing
+    spile: 0.85,     // each
+    tee: 0.65,       // each  — 3-way tee
+    mainTee: 1.10,   // each  — mainline tee
+  }));
+  const updateMatPrice = (k, v) => {
+    const next = { ...matPrices, [k]: parseFloat(v) || 0 };
+    setMatPrices(next); ls.set('sg_matprices', next);
+  };
+  React.useEffect(() => { ls.set('sg_vacsystem', vacSystem); }, [vacSystem]);
+  React.useEffect(() => { ls.set('sg_mainsize',  mainSize);  }, [mainSize]);
   const mapRef = React.useRef(null);
   const modeRef = React.useRef(mode); modeRef.current = mode;
   const pinsRef = React.useRef(pins); pinsRef.current = pins;
@@ -3584,6 +3880,158 @@ function LinesTab({ lang='en' }) {
           </div>
         </div>
       )}
+
+      {/* ── Materials Estimator ── */}
+      {routeResults.length > 0 && (() => {
+        const totalTrees   = routeResults.reduce((s, r) => s + r.trees.length, 0);
+        const lateralFt    = routeResults.reduce((s, r) => s + r.segments.filter(sg=>!sg.isToTank).reduce((a,sg)=>a+sg.dist,0), 0);
+        const mainFt       = routeResults.reduce((s, r) => s + r.segments.filter(sg=>sg.isToTank).reduce((a,sg)=>a+sg.dist,0), 0);
+        const dropFt       = totalTrees * 3;
+        const numSpiles    = totalTrees;
+        const numTees      = totalTrees;           // 3-way tees, one per tap on lateral
+        const numMainTees  = routeResults.length;  // one per lateral-to-main junction
+        const latDia       = vacSystem ? '5/16"' : '3/16"';
+        const latNote      = vacSystem ? 'vacuum system' : 'gravity — natural siphon effect';
+        const mainRec      = totalTrees >= 100 ? '1"' : '3/4"';
+
+        // Round up to nearest 100 ft for ordering
+        const orderFt = ft => Math.ceil(ft / 100) * 100;
+
+        const latCost    = lateralFt  * matPrices.lateral;
+        const mainCost   = mainFt     * matPrices.mainline;
+        const dropCost   = dropFt     * matPrices.drop;
+        const spileCost  = numSpiles  * matPrices.spile;
+        const teeCost    = numTees    * matPrices.tee;
+        const mainTeeCost= numMainTees* matPrices.mainTee;
+        const total      = latCost + mainCost + dropCost + spileCost + teeCost + mainTeeCost;
+
+        return (
+          <div className="card">
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <div className="card-title" style={{ marginBottom:0 }}>
+                <CardIcon bg="#0d1a2b" icon="ruler" />
+                Materials Estimator
+              </div>
+              <button onClick={()=>setShowMatPrices(v=>!v)}
+                style={{ background:'none', border:'1px solid #1e2d3d', borderRadius:8, padding:'4px 10px', fontSize:12, color:'#5a6a7a', cursor:'pointer' }}>
+                {showMatPrices ? 'Hide' : 'Edit'} Prices
+              </button>
+            </div>
+
+            {/* System type toggles */}
+            <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+              <div style={{ flex:1 }}>
+                <div className="field-label">Collection System</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  {[['Gravity','grav'],['Vacuum','vac']].map(([lbl,key])=>(
+                    <button key={key} onClick={()=>setVacSystem(key==='vac')}
+                      style={{ flex:1, background:(vacSystem===(key==='vac'))?'linear-gradient(135deg,#58a6ff,#1f6feb)':'#131e2c', border:'1px solid '+(vacSystem===(key==='vac')?'#58a6ff':'#1e2d3d'), borderRadius:8, padding:'7px 4px', fontSize:12, fontWeight:600, color:(vacSystem===(key==='vac'))?'#fff':'#5a6a7a', cursor:'pointer' }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ flex:1 }}>
+                <div className="field-label">Main Line Size</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  {['3/4"','1"'].map(sz=>(
+                    <button key={sz} onClick={()=>setMainSize(sz)}
+                      style={{ flex:1, background:mainSize===sz?'linear-gradient(135deg,#3fb950,#2ea043)':'#131e2c', border:'1px solid '+(mainSize===sz?'#3fb950':'#1e2d3d'), borderRadius:8, padding:'7px 4px', fontSize:12, fontWeight:600, color:mainSize===sz?'#07090f':'#5a6a7a', cursor:'pointer' }}>
+                      {sz}
+                    </button>
+                  ))}
+                </div>
+                {mainSize !== mainRec && <div style={{ fontSize:10, color:'#f0883e', marginTop:3 }}>⚠ Recommend {mainRec} for {totalTrees} taps</div>}
+              </div>
+            </div>
+
+            {/* Editable prices */}
+            {showMatPrices && (
+              <div style={{ background:'#081622', borderRadius:10, padding:'12px', marginBottom:12, border:'1px solid #1e2d3d' }}>
+                <div style={{ fontSize:12, color:'#5a6a7a', marginBottom:8 }}>Price per unit (edit to match your supplier)</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                  {[
+                    ['lateral',  `${latDia} lateral ($/ft)`],
+                    ['mainline', `${mainSize} main line ($/ft)`],
+                    ['drop',     '3/16" drop tubing ($/ft)'],
+                    ['spile',    'Spile / spout (each)'],
+                    ['tee',      '3-way tee (each)'],
+                    ['mainTee',  'Main line tee (each)'],
+                  ].map(([k, label]) => (
+                    <div key={k}>
+                      <div style={{ fontSize:10, color:'#5a6a7a', marginBottom:2 }}>{label}</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                        <span style={{ color:'#3fb950', fontSize:12 }}>$</span>
+                        <input type="number" defaultValue={matPrices[k]} step="0.01" min="0"
+                          onBlur={e=>updateMatPrice(k, e.target.value)}
+                          style={{ flex:1, background:'#0d1520', border:'1px solid #1e2d3d', borderRadius:6, padding:'4px 6px', color:'#c9d1d9', fontSize:12, outline:'none' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Per-line breakdown */}
+            {routeResults.map((r, ri) => {
+              const rLat  = r.segments.filter(sg=>!sg.isToTank).reduce((a,sg)=>a+sg.dist,0);
+              const rMain = r.segments.filter(sg=>sg.isToTank).reduce((a,sg)=>a+sg.dist,0);
+              return (
+                <div key={r.tank.id} style={{ background:'#0f1720', borderRadius:10, padding:'10px 12px', marginBottom:6, border:'1px solid #1e2d3d' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, fontWeight:600, fontSize:13 }}>
+                      <I.tank size={13} color="#58a6ff" /> {r.tank.label}
+                    </div>
+                    <span style={{ fontSize:11, color:'#5a6a7a' }}>{r.trees.length} taps</span>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:4, fontSize:11 }}>
+                    <div style={{ background:'#081622', borderRadius:6, padding:'5px 6px' }}>
+                      <div style={{ color:'#5a6a7a' }}>{latDia} lateral</div>
+                      <div style={{ fontWeight:700, color:'#58a6ff' }}>{rLat.toFixed(0)} ft</div>
+                    </div>
+                    <div style={{ background:'#081622', borderRadius:6, padding:'5px 6px' }}>
+                      <div style={{ color:'#5a6a7a' }}>{mainSize} main</div>
+                      <div style={{ fontWeight:700, color:'#3fb950' }}>{rMain.toFixed(0)} ft</div>
+                    </div>
+                    <div style={{ background:'#081622', borderRadius:6, padding:'5px 6px' }}>
+                      <div style={{ color:'#5a6a7a' }}>drops + tees</div>
+                      <div style={{ fontWeight:700, color:'#e0a44a' }}>{r.trees.length} × each</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Totals */}
+            <div style={{ background:'#0d2b15', borderRadius:10, padding:'12px 14px', border:'1px solid #1a4a25', marginTop:4 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:'#3fb950', marginBottom:10 }}>📦 Order List</div>
+              {[
+                { item:`${latDia} lateral tubing`, qty:`${lateralFt.toFixed(0)} ft`, order:`${orderFt(lateralFt)} ft`, cost:latCost, color:'#58a6ff' },
+                { item:`${mainSize} main line`,     qty:`${mainFt.toFixed(0)} ft`,    order:`${orderFt(mainFt)} ft`,    cost:mainCost,  color:'#3fb950' },
+                { item:'3/16" drop tubing (3 ft/tap)', qty:`${dropFt} ft`,            order:`${orderFt(dropFt)} ft`,    cost:dropCost,  color:'#c9d1d9' },
+                { item:'Spiles / spouts',           qty:`${numSpiles}`,               order:`${numSpiles}`,             cost:spileCost, color:'#c9d1d9' },
+                { item:'3-way tee connectors',      qty:`${numTees}`,                 order:`${numTees}`,               cost:teeCost,   color:'#c9d1d9' },
+                { item:'Main line tees',            qty:`${numMainTees}`,             order:`${numMainTees}`,           cost:mainTeeCost,color:'#c9d1d9' },
+              ].map((row, i) => (
+                <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 0', borderBottom:'1px solid #1a4a25' }}>
+                  <div>
+                    <div style={{ fontSize:13, color:row.color, fontWeight:500 }}>{row.item}</div>
+                    <div style={{ fontSize:10, color:'#3d5068' }}>Measured: {row.qty} · Order: {row.order}</div>
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'#3fb950', flexShrink:0, marginLeft:8 }}>${row.cost.toFixed(2)}</div>
+                </div>
+              ))}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:10 }}>
+                <div>
+                  <div style={{ fontWeight:700, color:'#3fb950', fontSize:15 }}>Est. Total</div>
+                  <div style={{ fontSize:11, color:'#5a6a7a' }}>Material cost only · {latNote}</div>
+                </div>
+                <div style={{ fontSize:22, fontWeight:800, color:'#3fb950' }}>${total.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tank spots */}
       {tankSpots.length > 0 && (
@@ -4131,6 +4579,993 @@ function WeatherTab({ lang='en' }) {
   );
 }
 
+// ─── SEASON RECAP TAB ─────────────────────────────────────────────────────────
+function RecapTab({ season, units, sapBrix, lang='en' }) {
+  const [operatorName, setOperatorName] = React.useState(() => ls.get('sg_operator', ''));
+  const saveOp = v => { setOperatorName(v); ls.set('sg_operator', v); };
+
+  // ── RO Savings inputs ─────────────────────────────────────────────────────
+  const [recapEvapRate,  setRecapEvapRate]  = React.useState(() => ls.get('sg_recap_evap',   50));
+  const [burnLbsHr,      setBurnLbsHr]      = React.useState(() => ls.get('sg_recap_burn',   23));
+  const [hasPreheater,   setHasPreheater]   = React.useState(() => ls.get('sg_recap_preheat', false));
+  const [recapRoBrix,    setRecapRoBrix]    = React.useState(() => ls.get('sg_dx_robrix',     8));
+  const [showROInputs,   setShowROInputs]   = React.useState(false);
+  const saveR = (key, setter) => v => { setter(v); ls.set(key, v); };
+
+  // ── Pull data ─────────────────────────────────────────────────────────────
+  const allLogs    = ls.get('sg_logs2', {});
+  const slog       = allLogs[season]      || {};
+  const prevLog    = allLogs[season - 1]  || {};
+  const brixArr    = ls.get('sg_brixlog', []);
+  const uLbl       = units === 'GAL' ? 'gal' : 'L';
+
+  const sumLog = arr => (arr || []).reduce((s, e) => s + (parseFloat(e.val) || 0), 0);
+  const sapGal    = sumLog(slog.sapCollected);
+  const syrupGal  = sumLog(slog.syrupMade);
+  const roGal     = sumLog(slog.sapRO);
+  const evapGal   = sumLog(slog.sapEvap);
+  const prevSap   = sumLog(prevLog.sapCollected);
+  const prevSyrup = sumLog(prevLog.syrupMade);
+
+  const theorRatio  = sapBrix > 0 ? (86 / sapBrix) : 0;
+  const actualRatio = syrupGal > 0 ? sapGal / syrupGal : 0;
+
+  // Best single collection day
+  const sapEntries = [...(slog.sapCollected || [])].sort((a, b) => (parseFloat(b.val)||0) - (parseFloat(a.val)||0));
+  const bestDay    = sapEntries[0];
+
+  // Season span from log entry dates
+  const allDates = [...(slog.sapCollected||[]), ...(slog.syrupMade||[])].map(e=>e.date).filter(Boolean).sort();
+  const firstDate = allDates[0] || null;
+  const lastDate  = allDates[allDates.length-1] || null;
+  const parseDate = s => { try { return new Date(s); } catch { return null; } };
+  const seasonDays = (firstDate && lastDate)
+    ? Math.round((parseDate(lastDate) - parseDate(firstDate)) / 86400000) + 1 : null;
+
+  // Brix stats from brixLog
+  const bVals  = brixArr.map(e => parseFloat(e.brix)).filter(v => !isNaN(v) && v > 0);
+  const avgBrix = bVals.length > 0 ? bVals.reduce((s,v)=>s+v,0)/bVals.length : null;
+  const maxBrix = bVals.length > 0 ? Math.max(...bVals) : null;
+  const minBrix = bVals.length > 0 ? Math.min(...bVals) : null;
+
+  // YoY
+  const sapChg   = prevSap   > 0 ? ((sapGal   - prevSap)   / prevSap   * 100) : null;
+  const syrupChg = prevSyrup > 0 ? ((syrupGal - prevSyrup) / prevSyrup * 100) : null;
+
+  const hasData = sapGal > 0 || syrupGal > 0;
+
+  // ── SVG Sap Collection Bar Chart ─────────────────────────────────────────
+  const SapChart = () => {
+    const entries = (slog.sapCollected || [])
+      .map(e => ({ date: e.date, val: parseFloat(e.val)||0 }))
+      .filter(e => e.val > 0)
+      .sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1);
+    if (entries.length === 0) return null;
+    const W = 320, H = 90, PAD = 4;
+    const maxVal = Math.max(...entries.map(e=>e.val), 1);
+    const barW   = Math.max(2, Math.floor((W - PAD*2) / entries.length) - 2);
+    const gap    = (W - PAD*2 - barW * entries.length) / Math.max(entries.length - 1, 1);
+    return (
+      <svg width="100%" viewBox={`0 0 ${W} ${H+16}`} style={{ display:'block', overflow:'visible' }}>
+        {entries.map((e, i) => {
+          const barH  = Math.max(2, Math.round((e.val / maxVal) * H));
+          const x     = PAD + i * (barW + gap);
+          const y     = H - barH;
+          const isBest = e.val === maxVal;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={barW} height={barH}
+                fill={isBest ? '#2dd4a7' : 'rgba(45,212,167,0.35)'}
+                rx={barW > 4 ? 2 : 0} />
+              {isBest && (
+                <text x={x + barW/2} y={y - 3} fontSize="9" fill="#2dd4a7"
+                  textAnchor="middle" fontWeight="700">{e.val.toFixed(0)}</text>
+              )}
+            </g>
+          );
+        })}
+        {/* Axis label */}
+        <text x={PAD} y={H+14} fontSize="9" fill="#3d5068">{firstDate}</text>
+        {lastDate !== firstDate && (
+          <text x={W-PAD} y={H+14} fontSize="9" fill="#3d5068" textAnchor="end">{lastDate}</text>
+        )}
+      </svg>
+    );
+  };
+
+  // ── Brix Sparkline ───────────────────────────────────────────────────────
+  const BrixLine = () => {
+    if (bVals.length < 2) return null;
+    const W = 320, H = 50;
+    const mn = Math.min(...bVals) - 0.2, mx = Math.max(...bVals) + 0.2, rng = mx - mn || 1;
+    const pts = bVals.map((v, i) => {
+      const x = (i / (bVals.length - 1)) * W;
+      const y = H - ((v - mn) / rng) * H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return (
+      <svg width="100%" viewBox={`0 0 ${W} ${H+4}`} style={{ display:'block' }}>
+        <polyline points={pts} fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinejoin="round" />
+        {bVals.map((v, i) => {
+          const x = (i / (bVals.length - 1)) * W;
+          const y = H - ((v - mn) / rng) * H;
+          return <circle key={i} cx={x} cy={y} r="3" fill="#a78bfa" />;
+        })}
+      </svg>
+    );
+  };
+
+  // ── Stat card ──────────────────────────────────────────────────────────────
+  const Stat = ({ val, lbl, sub, accent='#2dd4a7' }) => (
+    <div className="recap-stat-card" style={{ background:'#0d1a2b', border:'1px solid #1a304a', borderRadius:12, padding:'12px 10px', textAlign:'center' }}>
+      <div className="recap-stat-val" style={{ fontSize:22, fontWeight:800, color:accent, lineHeight:1.1 }}>{val}</div>
+      <div className="recap-stat-lbl" style={{ fontSize:11, color:'#8a9ab0', fontWeight:600, marginTop:2 }}>{lbl}</div>
+      {sub && <div style={{ fontSize:10, color:'#3d5068', marginTop:2 }}>{sub}</div>}
+    </div>
+  );
+
+  const Sec = ({ title, children, icon }) => (
+    <div className="recap-section" style={{ background:'#0d1a2b', border:'1px solid #1a304a', borderRadius:14, padding:'14px 16px', marginBottom:12 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:'#3d5068', letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:10, display:'flex', alignItems:'center', gap:6 }}>
+        {icon}{title}
+      </div>
+      {children}
+    </div>
+  );
+
+  const YoYBadge = ({ pct, label }) => {
+    if (pct === null) return null;
+    const up = pct >= 0;
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #131e2c' }}>
+        <span style={{ fontSize:13, color:'#8a9ab0' }}>{label}</span>
+        <span className={up ? 'recap-yoy-up' : 'recap-yoy-dn'}
+          style={{ fontWeight:700, fontSize:14, color: up ? '#2dd4a7' : '#f85149' }}>
+          {up ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="recap-printable" style={{ padding:'16px 14px 60px' }}>
+
+      {/* ── Print header (only visible on print) ── */}
+      <div style={{ display:'none' }} className="recap-print-header">
+        <div style={{ textAlign:'center', marginBottom:20 }}>
+          <div style={{ fontSize:26, fontWeight:800 }}>🍁 {season} Maple Season Recap</div>
+          {operatorName && <div style={{ fontSize:15, color:'#444', marginTop:4 }}>{operatorName}</div>}
+          <div style={{ fontSize:12, color:'#666', marginTop:2 }}>Generated by SugarCalc · sugarcalc.app</div>
+        </div>
+      </div>
+
+      {/* ── Screen header ── */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+        <div>
+          <div className="recap-header" style={{ fontWeight:800, fontSize:20, lineHeight:1.2 }}>{season} Season Recap</div>
+          <div className="recap-sub" style={{ fontSize:13, color:'#5a6a7a', marginTop:2 }}>Your maple operation at a glance</div>
+        </div>
+        <button
+          className="recap-print-btn"
+          onClick={() => window.print()}
+          style={{ background:'linear-gradient(135deg,#2dd4a7,#1fbf94)', border:'none', borderRadius:10, padding:'8px 14px', fontWeight:700, fontSize:13, color:'#07090f', cursor:'pointer', display:'flex', alignItems:'center', gap:6, flexShrink:0 }}
+        >
+          <I.download size={15} color="#07090f" /> Export PDF
+        </button>
+      </div>
+
+      {/* ── Operator name input ── */}
+      <div className="recap-no-print" style={{ marginBottom:14 }}>
+        <input
+          type="text"
+          value={operatorName}
+          onChange={e => saveOp(e.target.value)}
+          placeholder="Operation / sugarmaker name (optional)"
+          style={{ width:'100%', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:10, padding:'8px 12px', color:'#e2eaf4', fontSize:13, boxSizing:'border-box' }}
+        />
+      </div>
+
+      {!hasData && (
+        <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:12, padding:'14px 16px', fontSize:13, color:'#f59e0b', lineHeight:1.5, marginBottom:16 }}>
+          ⚠️ No {season} log data yet. Add sap and syrup entries in the Log tab — this page will fill in automatically.
+        </div>
+      )}
+
+      {/* ── Big 4 stats ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+        <Stat val={sapGal > 0 ? sapGal.toLocaleString('en-US',{maximumFractionDigits:1}) : '—'} lbl={`Total Sap (${uLbl})`} sub={`${(slog.sapCollected||[]).length} collection${(slog.sapCollected||[]).length!==1?'s':''}`} />
+        <Stat val={syrupGal > 0 ? syrupGal.toFixed(1) : '—'} lbl={`Syrup Made (${uLbl})`} sub={`${(slog.syrupMade||[]).length} batch${(slog.syrupMade||[]).length!==1?'es':''}`} accent="#a78bfa" />
+        <Stat val={actualRatio > 0 ? actualRatio.toFixed(1)+':1' : '—'} lbl="Actual Ratio" sub={theorRatio > 0 ? `Theory: ${theorRatio.toFixed(1)}:1` : null} accent={actualRatio > 0 && theorRatio > 0 && actualRatio <= theorRatio * 1.15 ? '#2dd4a7' : '#f59e0b'} />
+        <Stat val={seasonDays != null ? `${seasonDays}d` : '—'} lbl="Season Length" sub={firstDate && lastDate ? `${firstDate} – ${lastDate}` : null} accent="#58a6ff" />
+      </div>
+
+      {/* ── Secondary stats ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:12 }}>
+        <Stat val={bestDay ? bestDay.val+'' : '—'} lbl={`Best Run (${uLbl})`} sub={bestDay?.date || null} accent="#f59e0b" />
+        <Stat val={roGal > 0 ? roGal.toFixed(0) : '—'} lbl={`RO'd (${uLbl})`} sub={roGal > 0 && evapGal > 0 ? `${(roGal/evapGal*100).toFixed(0)}% util` : null} accent="#2dd4a7" />
+        <Stat val={avgBrix != null ? avgBrix.toFixed(2)+'°' : sapBrix+'°'} lbl="Avg Brix" sub={maxBrix != null ? `${minBrix?.toFixed(2)}–${maxBrix?.toFixed(2)}°` : 'estimated'} accent="#a78bfa" />
+      </div>
+
+      {/* ── Sap collection chart ── */}
+      {(slog.sapCollected||[]).length > 1 && (
+        <Sec title="Sap Collections by Run" icon={<I.droplet size={12} color="#2dd4a7"/>}>
+          <SapChart />
+          <div style={{ fontSize:11, color:'#3d5068', marginTop:6 }}>
+            Each bar = one collection. Peak run highlighted in teal.
+          </div>
+        </Sec>
+      )}
+
+      {/* ── Brix trend ── */}
+      {bVals.length >= 2 && (
+        <Sec title="Sap Brix Trend" icon={<I.percent size={12} color="#a78bfa"/>}>
+          <BrixLine />
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#5a6a7a', marginTop:6 }}>
+            <span>Low: {minBrix?.toFixed(2)}°Bx</span>
+            <span>Avg: {avgBrix?.toFixed(2)}°Bx</span>
+            <span>High: {maxBrix?.toFixed(2)}°Bx</span>
+          </div>
+        </Sec>
+      )}
+
+      {/* ── Year-over-year ── */}
+      {(sapChg !== null || syrupChg !== null) && (
+        <Sec title={`vs. ${season-1} Season`} icon={<I.trendUp size={12} color="#58a6ff"/>}>
+          <YoYBadge pct={sapChg}   label={`Sap collected (${uLbl})`} />
+          <YoYBadge pct={syrupChg} label={`Syrup produced (${uLbl})`} />
+          <div style={{ display:'flex', justifyContent:'space-between', paddingTop:8, fontSize:12, color:'#3d5068' }}>
+            <span>{season-1}: {prevSap.toFixed(1)} gal sap / {prevSyrup.toFixed(1)} gal syrup</span>
+          </div>
+        </Sec>
+      )}
+
+      {/* ── Conversion notes ── */}
+      {actualRatio > 0 && theorRatio > 0 && (
+        <Sec title="Conversion Efficiency" icon={<I.scale size={12} color="#f59e0b"/>}>
+          <div style={{ display:'flex', gap:12, justifyContent:'space-between', marginBottom:8 }}>
+            <div style={{ textAlign:'center', flex:1 }}>
+              <div style={{ fontSize:18, fontWeight:800, color: actualRatio <= theorRatio*1.12 ? '#2dd4a7' : '#f59e0b' }}>{actualRatio.toFixed(1)}:1</div>
+              <div style={{ fontSize:11, color:'#5a6a7a' }}>Actual ratio</div>
+            </div>
+            <div style={{ textAlign:'center', flex:1 }}>
+              <div style={{ fontSize:18, fontWeight:800, color:'#8a9ab0' }}>{theorRatio.toFixed(1)}:1</div>
+              <div style={{ fontSize:11, color:'#5a6a7a' }}>Rule of 86 ({sapBrix}°Brix)</div>
+            </div>
+            <div style={{ textAlign:'center', flex:1 }}>
+              <div style={{ fontSize:18, fontWeight:800, color: actualRatio <= theorRatio*1.12 ? '#2dd4a7' : '#f59e0b' }}>
+                {actualRatio > 0 ? ((actualRatio - theorRatio)/theorRatio*100).toFixed(0) : '—'}%
+              </div>
+              <div style={{ fontSize:11, color:'#5a6a7a' }}>vs. theoretical</div>
+            </div>
+          </div>
+          {actualRatio > theorRatio * 1.15 && (
+            <div style={{ fontSize:12, color:'#f59e0b', lineHeight:1.5 }}>
+              Your ratio is {((actualRatio - theorRatio)/theorRatio*100).toFixed(0)}% above theoretical — check for foam loss, evaporator leaks, or thin drawoff.
+            </div>
+          )}
+        </Sec>
+      )}
+
+      {/* ── RO Savings Chart ── */}
+      {sapGal > 0 && recapEvapRate > 0 && (() => {
+        // Straight-boil: boil all the sap at evap rate
+        const straightHrs  = sapGal / recapEvapRate;
+        const straightWood = straightHrs * burnLbsHr;
+
+        // With RO: concentrate the ro'd portion, then boil
+        const roConc      = recapRoBrix > sapBrix && roGal > 0
+          ? roGal * (sapBrix / recapRoBrix)   // RO reduces volume proportionally
+          : roGal;
+        const roReducedSap = (sapGal - roGal) + roConc;
+        const preH         = hasPreheater ? 0.85 : 1.0;  // preheater saves ~15% boil time
+        const roHrs        = (roReducedSap / recapEvapRate) * preH;
+        const roWood       = roHrs * burnLbsHr * (hasPreheater ? 0.88 : 1.0);
+
+        const savedHrs  = straightHrs - roHrs;
+        const savedWood = straightWood - roWood;
+
+        const maxHrs  = Math.max(straightHrs, 0.1);
+        const maxWood = Math.max(straightWood, 0.1);
+        const W = 280;
+
+        const Bar = ({ label, value, max, color, unit, secondary }) => {
+          const pct = Math.min(1, value / max);
+          const BAR_W = Math.round(W * pct);
+          return (
+            <div style={{ marginBottom:10 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#8a9ab0', marginBottom:3 }}>
+                <span style={{ fontWeight:600 }}>{label}</span>
+                <span style={{ color, fontWeight:700 }}>{value >= 10 ? value.toFixed(0) : value.toFixed(1)} {unit}</span>
+              </div>
+              <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:4, height:16, overflow:'hidden' }}>
+                <div style={{ width: BAR_W, height:'100%', background: color, borderRadius:4, display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:4 }}>
+                </div>
+              </div>
+              {secondary && <div style={{ fontSize:11, color:'#3d5068', marginTop:2, textAlign:'right' }}>{secondary}</div>}
+            </div>
+          );
+        };
+
+        return (
+          <Sec title="RO Savings vs. Straight-Boil" icon={<I.filter size={12} color="#58a6ff"/>}>
+            {/* Inputs toggle */}
+            <div style={{ marginBottom:12 }}>
+              <button onClick={() => setShowROInputs(s=>!s)}
+                style={{ background:'none', border:'none', color:'#3d5068', fontSize:12, cursor:'pointer', textDecoration:'underline', padding:0 }}>
+                {showROInputs ? '▲ Hide inputs' : '▼ Adjust inputs'}
+              </button>
+              {showROInputs && (
+                <div style={{ marginTop:10, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <div>
+                    <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Evap rate (gal/hr)</div>
+                    <input type="number" value={recapEvapRate} min={1} max={500} step={5}
+                      onChange={e => saveR('sg_recap_evap', setRecapEvapRate)(parseFloat(e.target.value)||50)}
+                      style={{ width:'100%', boxSizing:'border-box', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'6px 10px', color:'#e2eaf4', fontSize:13 }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>Wood burn (lbs/hr)</div>
+                    <input type="number" value={burnLbsHr} min={5} max={100} step={1}
+                      onChange={e => saveR('sg_recap_burn', setBurnLbsHr)(parseFloat(e.target.value)||23)}
+                      style={{ width:'100%', boxSizing:'border-box', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'6px 10px', color:'#e2eaf4', fontSize:13 }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:3 }}>RO output (°Brix)</div>
+                    <input type="number" value={recapRoBrix} min={1} max={20} step={0.5}
+                      onChange={e => saveR('sg_dx_robrix', setRecapRoBrix)(parseFloat(e.target.value)||8)}
+                      style={{ width:'100%', boxSizing:'border-box', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'6px 10px', color:'#e2eaf4', fontSize:13 }} />
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, paddingTop:18 }}>
+                    <input type="checkbox" id="preheat-chk" checked={hasPreheater}
+                      onChange={e => saveR('sg_recap_preheat', setHasPreheater)(e.target.checked)}
+                      style={{ accentColor:'#58a6ff', width:16, height:16 }} />
+                    <label htmlFor="preheat-chk" style={{ fontSize:13, color:'#8a9ab0', cursor:'pointer' }}>Preheater</label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Boil time bars */}
+            <div style={{ fontSize:11, fontWeight:700, color:'#3d5068', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:6 }}>Boil Time</div>
+            <Bar label="Straight-boil" value={straightHrs} max={maxHrs} color="#f85149" unit="hrs" />
+            <Bar label={`With RO${hasPreheater ? ' + preheater' : ''}`} value={roHrs} max={maxHrs} color="#58a6ff" unit="hrs"
+              secondary={roGal > 0 ? `${roGal.toFixed(0)} gal through RO → ${roConc.toFixed(0)} gal concentrated` : 'No RO data in log'} />
+
+            {/* Wood bars */}
+            <div style={{ fontSize:11, fontWeight:700, color:'#3d5068', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:6, marginTop:14 }}>Wood Used</div>
+            <Bar label="Straight-boil" value={straightWood} max={maxWood} color="#f85149" unit="lbs" />
+            <Bar label={`With RO${hasPreheater ? ' + preheater' : ''}`} value={roWood} max={maxWood} color="#58a6ff" unit="lbs" />
+
+            {/* Savings summary */}
+            {savedHrs > 0 && (
+              <div style={{ background:'rgba(45,212,167,0.08)', border:'1px solid rgba(45,212,167,0.25)', borderRadius:10, padding:'10px 14px', marginTop:14, display:'flex', gap:20, justifyContent:'center' }}>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:'#2dd4a7' }}>{savedHrs.toFixed(0)} hrs</div>
+                  <div style={{ fontSize:11, color:'#5a6a7a' }}>saved boiling</div>
+                </div>
+                <div style={{ width:1, background:'rgba(255,255,255,0.08)' }} />
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:'#2dd4a7' }}>{savedWood >= 1000 ? (savedWood/1000).toFixed(1)+'k' : savedWood.toFixed(0)} lbs</div>
+                  <div style={{ fontSize:11, color:'#5a6a7a' }}>wood saved</div>
+                </div>
+                <div style={{ width:1, background:'rgba(255,255,255,0.08)' }} />
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:'#2dd4a7' }}>{(savedWood/2000).toFixed(2)}</div>
+                  <div style={{ fontSize:11, color:'#5a6a7a' }}>cords saved</div>
+                </div>
+              </div>
+            )}
+            {roGal === 0 && (
+              <div style={{ fontSize:12, color:'#3d5068', marginTop:8, lineHeight:1.5 }}>
+                Log your R/O sap entries to see actual savings vs. straight-boil.
+              </div>
+            )}
+          </Sec>
+        );
+      })()}
+
+      {/* ── Per-point breakdown ── */}
+      {(() => {
+        const cpoints = ls.get('sg_cpoints', []);
+        if (cpoints.length === 0) return null;
+        const sapEntries = slog.sapCollected || [];
+        const syrupEntries = slog.syrupMade || [];
+        // Check if any entries are tagged
+        const hasTagged = [...sapEntries, ...syrupEntries].some(e => e.point);
+        if (!hasTagged) return null;
+        const uLbl2 = units === 'GAL' ? 'gal' : 'L';
+        return (
+          <Sec title="By Collection Point" icon={<I.circle size={12} color="#a78bfa"/>}>
+            {cpoints.map(pt => {
+              const ptSap   = sapEntries.filter(e => e.point === pt.id).reduce((s,e)=>s+(parseFloat(e.val)||0),0);
+              const ptSyrup = syrupEntries.filter(e => e.point === pt.id).reduce((s,e)=>s+(parseFloat(e.val)||0),0);
+              const ptRuns  = sapEntries.filter(e => e.point === pt.id).length;
+              const ptRatio = ptSyrup > 0 ? (ptSap / ptSyrup).toFixed(1)+':1' : '—';
+              return (
+                <div key={pt.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #131e2c' }}>
+                  <div style={{ width:11, height:11, borderRadius:'50%', background:pt.color, flexShrink:0 }} />
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:14, color:'#e2eaf4' }}>{pt.name}</div>
+                    <div style={{ fontSize:12, color:'#5a6a7a', marginTop:2 }}>{ptRuns} runs · ratio {ptRatio}</div>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontWeight:700, fontSize:15, color:pt.color }}>{ptSap.toFixed(1)} <span style={{ fontSize:11, fontWeight:400 }}>{uLbl2} sap</span></div>
+                    {ptSyrup > 0 && <div style={{ fontSize:12, color:'#8a9ab0' }}>{ptSyrup.toFixed(1)} {uLbl2} syrup</div>}
+                  </div>
+                </div>
+              );
+            })}
+            {/* Untagged / shared */}
+            {(() => {
+              const unSap   = sapEntries.filter(e => !e.point).reduce((s,e)=>s+(parseFloat(e.val)||0),0);
+              const unSyrup = syrupEntries.filter(e => !e.point).reduce((s,e)=>s+(parseFloat(e.val)||0),0);
+              if (unSap === 0 && unSyrup === 0) return null;
+              return (
+                <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
+                  <div style={{ width:11, height:11, borderRadius:'50%', background:'#3d5068', flexShrink:0 }} />
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:600, fontSize:13, color:'#5a6a7a' }}>Unassigned / shared</div>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontWeight:600, fontSize:13, color:'#5a6a7a' }}>{unSap.toFixed(1)} {uLbl} sap</div>
+                    {unSyrup > 0 && <div style={{ fontSize:12, color:'#3d5068' }}>{unSyrup.toFixed(1)} {uLbl} syrup</div>}
+                  </div>
+                </div>
+              );
+            })()}
+          </Sec>
+        );
+      })()}
+
+      {/* ── Footer / attribution ── */}
+      <div style={{ textAlign:'center', marginTop:20, color:'#2d3d4d', fontSize:11 }}>
+        Generated by SugarCalc · {new Date().toLocaleDateString()}
+      </div>
+    </div>
+  );
+}
+
+// ─── DIAGNOSE TAB (BETA) ──────────────────────────────────────────────────────
+function DiagnoseTab({ season, trees, units, sapBrix, lang='en' }) {
+  const [syrupPrice, setSyrupPrice] = React.useState(() => ls.get('sg_dx_price', 65));
+  const [woodCost,   setWoodCost]   = React.useState(() => ls.get('sg_dx_wood',  80));
+  const [laborRate,  setLaborRate]  = React.useState(() => ls.get('sg_dx_labor', 20));
+  const [vacLevel,   setVacLevel]   = React.useState(() => ls.get('sg_dx_vac',   'gravity'));
+  const [roOutBrix,  setRoOutBrix]  = React.useState(() => ls.get('sg_dx_robrix', 0));
+  const [expanded,   setExpanded]   = React.useState({});
+  const [findings,   setFindings]   = React.useState(null);
+  const [ran,        setRan]        = React.useState(false);
+
+  const save = (key, setter) => v => { setter(v); ls.set(key, v); };
+
+  // ── Diagnostic engine ──────────────────────────────────────────────────────
+  function runDiagnostics() {
+    const allLogs  = ls.get('sg_logs2', {});
+    const slog     = allLogs[season] || {};
+    const prevLog  = allLogs[season - 1] || {};
+    const brixLog  = ls.get('sg_brixlog', []);   // stored as flat array in SeasonTab
+    const pins     = ls.get('sg_lines_pins', []);
+    const results  = [];
+
+    // Helper: sum an array of log entries
+    const sumLog = arr => (arr || []).reduce((s, e) => s + (parseFloat(e.val) || 0), 0);
+    const sapGal  = sumLog(slog.sapCollected);
+    const roGal   = sumLog(slog.sapRO);
+    const evapGal = sumLog(slog.sapEvap);
+    const syrupGal = sumLog(slog.syrupMade);
+
+    // ── 1. Yield-per-tap ────────────────────────────────────────────────────
+    const numTrees = parseInt(trees) || 0;
+    const tapCount = numTrees;  // simplified: 1 tap per tracked tree
+    if (sapGal > 0 && tapCount > 0) {
+      const yieldPerTap = sapGal / tapCount;
+      // Benchmarks: gravity ~10-15 gal/tap, 15" vac ~20-28, high vac ~30-45
+      const benchLow  = vacLevel === 'high' ? 30 : vacLevel === 'vac15' ? 20 : 10;
+      const benchHigh = vacLevel === 'high' ? 45 : vacLevel === 'vac15' ? 28 : 15;
+      const pct = Math.round(((yieldPerTap - benchLow) / (benchLow)) * 100);
+      const gap = Math.max(0, benchLow - yieldPerTap);
+      const potentialSyrup = gap * tapCount / (units === 'GAL' ? 86 / sapBrix : 86 / sapBrix * 3.785);
+      const roiVal = potentialSyrup * syrupPrice;
+      if (yieldPerTap < benchLow) {
+        results.push({
+          id: 'yield',
+          severity: yieldPerTap < benchLow * 0.6 ? 'high' : 'medium',
+          title: 'Low sap yield per tap',
+          summary: `${yieldPerTap.toFixed(1)} gal/tap vs. ${benchLow}–${benchHigh} benchmark for your vacuum level.`,
+          action: vacLevel === 'gravity'
+            ? 'Consider upgrading to 15" vacuum tubing (3/16" laterals) — natural siphon can add 5–10 gal/tap with no electricity.'
+            : 'Check for air leaks in lines, verify pump is pulling target inches, inspect check valves, and confirm taps are sealed.',
+          effort: 'Medium',
+          payback: roiVal > 0 ? `~$${roiVal.toFixed(0)} potential revenue this season` : null,
+          roi: roiVal,
+          details: [
+            `Your operation: ${yieldPerTap.toFixed(1)} gal/tap`,
+            `Benchmark for ${vacLevel === 'gravity' ? 'gravity' : vacLevel === 'vac15' ? '15" vacuum' : 'high vacuum'}: ${benchLow}–${benchHigh} gal/tap`,
+            `Gap: ${gap.toFixed(1)} gal/tap × ${tapCount} taps = ${(gap * tapCount).toFixed(0)} gal sap lost`,
+            `At ${rule86(sapBrix).toFixed(1)}:1 ratio = ${potentialSyrup.toFixed(1)} gal syrup × $${syrupPrice} = $${roiVal.toFixed(0)}`,
+            'Source: UVM Proctor Maple Research Center, 2023 Vermont Maple Industry Stats',
+          ],
+        });
+      } else {
+        results.push({
+          id: 'yield',
+          severity: 'good',
+          title: 'Yield per tap looks solid',
+          summary: `${yieldPerTap.toFixed(1)} gal/tap is within or above the ${benchLow}–${benchHigh} benchmark.`,
+          roi: 0,
+        });
+      }
+    }
+
+    // ── 2. Sap-to-syrup conversion ratio ───────────────────────────────────
+    if (sapGal > 0 && syrupGal > 0) {
+      const actualRatio = sapGal / syrupGal;
+      const theorRatio  = rule86(sapBrix);
+      const pctOff = ((actualRatio - theorRatio) / theorRatio) * 100;
+      if (pctOff > 15) {
+        const lostSyrup = (actualRatio - theorRatio) / (actualRatio * theorRatio) * sapGal;
+        const roiVal = lostSyrup * syrupPrice;
+        results.push({
+          id: 'conversion',
+          severity: pctOff > 35 ? 'high' : 'medium',
+          title: 'Sap-to-syrup conversion worse than expected',
+          summary: `Using ${actualRatio.toFixed(1)}:1 vs. theoretical ${theorRatio.toFixed(1)}:1 — ${pctOff.toFixed(0)}% more sap per gallon syrup.`,
+          action: 'Check for: foam overflow during boil, equipment leaks, syrup drawn off too thin, or inaccurate volume tracking.',
+          effort: 'Low',
+          payback: `~${lostSyrup.toFixed(1)} gal syrup lost = $${roiVal.toFixed(0)}`,
+          roi: roiVal,
+          details: [
+            `Your ratio: ${actualRatio.toFixed(1)}:1  |  Rule of 86 at ${sapBrix}°Brix: ${theorRatio.toFixed(1)}:1`,
+            `Excess sap used: ${((actualRatio - theorRatio) * syrupGal).toFixed(0)} gal`,
+            `Equivalent lost syrup: ~${lostSyrup.toFixed(1)} gal × $${syrupPrice} = $${roiVal.toFixed(0)}`,
+            'Source: Cornell Maple Program, Sugar Maple Research & Extension',
+          ],
+        });
+      } else {
+        results.push({
+          id: 'conversion',
+          severity: 'good',
+          title: 'Sap conversion ratio is on target',
+          summary: `${actualRatio.toFixed(1)}:1 actual vs. ${theorRatio.toFixed(1)}:1 theoretical (${Math.abs(pctOff).toFixed(0)}% variance).`,
+          roi: 0,
+        });
+      }
+    }
+
+    // ── 3. RO utilization ──────────────────────────────────────────────────
+    if (roGal > 0 && evapGal > 0) {
+      const roUtil = roGal / evapGal;
+      if (roUtil < 0.7) {
+        const potentialFuelSave = (evapGal - roGal) * 0.6 * (woodCost / 128); // cords saved estimate
+        results.push({
+          id: 'ro_util',
+          severity: 'medium',
+          title: 'RO underutilized relative to evaporator',
+          summary: `Only ${(roUtil * 100).toFixed(0)}% of evaporator sap went through RO first. Target >90%.`,
+          action: 'Pre-concentrate all incoming sap before evaporation. RO is your highest-ROI piece of equipment.',
+          effort: 'Low',
+          payback: `~${potentialFuelSave.toFixed(1)} cord wood saved = $${(potentialFuelSave * woodCost).toFixed(0)}`,
+          roi: potentialFuelSave * woodCost,
+          details: [
+            `RO processed: ${roGal.toFixed(1)} gal  |  Evaporated: ${evapGal.toFixed(1)} gal`,
+            `Gap: ${(evapGal - roGal).toFixed(1)} gal not RO'd`,
+            `Running RO first reduces evaporation by 60–75%`,
+            `Wood cost assumption: $${woodCost}/cord`,
+            'Source: UVM Proctor — RO Energy Savings Analysis',
+          ],
+        });
+      } else {
+        results.push({
+          id: 'ro_util',
+          severity: 'good',
+          title: 'RO utilization is strong',
+          summary: `${(roUtil * 100).toFixed(0)}% of evaporator sap went through RO — great fuel savings.`,
+          roi: 0,
+        });
+      }
+    } else if (evapGal > 50 && roGal === 0) {
+      const potentialSave = evapGal * 0.65 * (woodCost / 128);
+      results.push({
+        id: 'ro_util',
+        severity: 'high',
+        title: 'No RO usage detected',
+        summary: `You evaporated ${evapGal.toFixed(1)} gal with no RO pre-concentration — significant fuel cost opportunity.`,
+        action: 'A small RO system (e.g., 150 GPH) pays back in 1–3 seasons for operations over 500 taps. Consider renting before buying.',
+        effort: 'High',
+        payback: `~$${potentialSave.toFixed(0)}/season in wood costs at current evaporation volume`,
+        roi: potentialSave,
+        details: [
+          `Total evaporated: ${evapGal.toFixed(1)} gal with no RO`,
+          `RO reduces evaporation workload by 60–75%`,
+          `Estimated wood saved: ${(evapGal * 0.65 / 128).toFixed(1)} cords × $${woodCost} = $${potentialSave.toFixed(0)}`,
+          'Source: Maine Maple Producers Association — RO Economics Guide',
+        ],
+      });
+    }
+
+    // ── 4. RO output Brix ──────────────────────────────────────────────────
+    const roBrix = parseFloat(roOutBrix) || 0;
+    if (roBrix > 0) {
+      if (roBrix < 6) {
+        results.push({
+          id: 'ro_brix',
+          severity: 'medium',
+          title: 'RO output Brix is low',
+          summary: `${roBrix}°Brix out of RO. Target 8–12°Brix for best evaporator efficiency.`,
+          action: 'Run a second pass, increase RO pressure, or slow feed rate. Check membrane condition if output is consistently low.',
+          effort: 'Low',
+          payback: 'Doubling output Brix halves evaporation time and fuel cost',
+          roi: evapGal > 0 ? ((8 - roBrix) / roBrix) * evapGal * 0.5 * (woodCost / 128) * woodCost : 50,
+          details: [
+            `Current output: ${roBrix}°Brix  |  Target: 8–12°Brix`,
+            'Low output Brix means membranes may need cleaning or replacement',
+            'Ideal: two-pass RO to 12–16°Brix before evaporation',
+            'Source: Cornell Maple Program — RO Optimization',
+          ],
+        });
+      } else if (roBrix >= 6 && roBrix <= 14) {
+        results.push({
+          id: 'ro_brix',
+          severity: 'good',
+          title: 'RO output Brix is in a good range',
+          summary: `${roBrix}°Brix is solid. Running above 10°Brix means excellent evaporator efficiency.`,
+          roi: 0,
+        });
+      }
+    }
+
+    // ── 5. Vacuum level check ──────────────────────────────────────────────
+    if (vacLevel === 'gravity' && tapCount >= 100) {
+      const addlSap = tapCount * 8; // ~8 extra gal/tap with 15" vac
+      const addlSyrup = addlSap / rule86(sapBrix);
+      const roiVal = addlSyrup * syrupPrice;
+      results.push({
+        id: 'vacuum',
+        severity: 'medium',
+        title: 'Gravity system — vacuum upgrade opportunity',
+        summary: `${tapCount} taps on gravity. Natural 3/16" siphon vacuum at this scale could add $${roiVal.toFixed(0)}/season.`,
+        action: 'Upgrade laterals to 3/16" tubing to create natural siphon vacuum (12–15"). No pump or electricity needed. Best ROI upgrade for gravity operations.',
+        effort: 'Medium',
+        payback: `~$${roiVal.toFixed(0)}/season additional revenue from extra sap`,
+        roi: roiVal,
+        details: [
+          `3/16" lateral tubing creates 12–15" natural vacuum via siphon effect`,
+          `Benchmark gain: +6–10 gal/tap over standard gravity`,
+          `${tapCount} taps × 8 gal estimate = ${addlSap} gal sap → ${addlSyrup.toFixed(1)} gal syrup`,
+          `At $${syrupPrice}/gal = $${roiVal.toFixed(0)} additional revenue`,
+          'Source: UVM Proctor — 3/16" Tubing Research (2015–2022)',
+        ],
+      });
+    }
+
+    // ── 6. Line grade check ────────────────────────────────────────────────
+    const linesPins = pins.filter(p => p.type !== 'tank');
+    const tankPins  = pins.filter(p => p.type === 'tank');
+    if (linesPins.length >= 3 && tankPins.length >= 1) {
+      const routeResults = ls.get('sg_lines_results', []);
+      if (routeResults.length > 0) {
+        const badLines = routeResults.filter(r => !r.goodFlow);
+        const worstGrade = routeResults.reduce((min, r) => Math.min(min, r.minGrade || 0), 100);
+        if (badLines.length > 0) {
+          results.push({
+            id: 'grades',
+            severity: badLines.length > routeResults.length / 2 ? 'high' : 'medium',
+            title: `${badLines.length} of ${routeResults.length} lines have flow problems`,
+            summary: `Worst segment grade: ${worstGrade.toFixed(1)}%. Lines need ≥1% grade for reliable sap flow.`,
+            action: 'Re-route problem lines to avoid flat or uphill sections. Consider a mid-line releaser, or add vacuum to compensate for flat terrain.',
+            effort: 'High',
+            payback: 'Proper grade prevents stale sap, bacterial growth, and lost collections',
+            roi: badLines.length * tapCount * 2 * syrupPrice / routeResults.length,
+            details: [
+              `Lines analyzed: ${routeResults.length}  |  Problem lines: ${badLines.length}`,
+              `Minimum acceptable grade: 1.0% (roughly 1 ft drop per 100 ft run)`,
+              `Ideal grade: 2–5% — steeper is better for gravity flow`,
+              `Flat or uphill sections cause sap to pool and ferment`,
+              'Source: UVM Extension — Maple Tubing System Design Guide',
+            ],
+          });
+        } else {
+          results.push({
+            id: 'grades',
+            severity: 'good',
+            title: 'Line grades look good',
+            summary: `All ${routeResults.length} analyzed lines have adequate flow grade. Overall: ${worstGrade.toFixed(1)}% minimum.`,
+            roi: 0,
+          });
+        }
+      }
+    }
+
+    // ── 7. YoY comparison ─────────────────────────────────────────────────
+    const prevSap   = sumLog(prevLog.sapCollected);
+    const prevSyrup = sumLog(prevLog.syrupMade);
+    if (sapGal > 0 && prevSap > 0) {
+      const sapChg   = ((sapGal - prevSap) / prevSap) * 100;
+      const syrupChg = prevSyrup > 0 ? ((syrupGal - prevSyrup) / prevSyrup) * 100 : null;
+      const isDown = sapChg < -15;
+      results.push({
+        id: 'yoy',
+        severity: isDown ? 'medium' : 'good',
+        title: isDown ? `Sap volume down ${Math.abs(sapChg).toFixed(0)}% vs. last year` : `Sap volume up ${sapChg.toFixed(0)}% vs. last year`,
+        summary: `${season}: ${sapGal.toFixed(1)} gal  vs.  ${season-1}: ${prevSap.toFixed(1)} gal (${sapChg > 0 ? '+' : ''}${sapChg.toFixed(0)}%)`,
+        action: isDown ? 'Review tap timing, sap collection frequency, equipment downtime, and weather patterns. Bacterial growth from late tapping can reduce yield.' : null,
+        effort: isDown ? 'Low investigation' : null,
+        roi: isDown ? Math.abs(sapChg / 100 * sapGal / rule86(sapBrix) * syrupPrice) : 0,
+        details: [
+          `${season-1} sap: ${prevSap.toFixed(1)} gal  →  ${season} sap: ${sapGal.toFixed(1)} gal (${sapChg > 0 ? '+' : ''}${sapChg.toFixed(0)}%)`,
+          syrupChg != null ? `Syrup: ${prevSyrup.toFixed(1)} → ${syrupGal.toFixed(1)} gal (${syrupChg > 0 ? '+' : ''}${syrupChg.toFixed(0)}%)` : 'No prior syrup data',
+          'Year-over-year swings >20% may indicate tap timing, weather, or equipment issues',
+          'Note: natural yield variation of ±15% is normal between seasons',
+        ],
+      });
+    }
+
+    // ── 8. Sap Brix trend ─────────────────────────────────────────────────
+    const brixEntries = Array.isArray(brixLog) ? brixLog : [];
+    if (brixEntries.length >= 3) {
+      const avg  = brixEntries.reduce((s, e) => s + (parseFloat(e.brix) || 0), 0) / brixEntries.length;
+      const late = brixEntries.slice(-3).reduce((s, e) => s + (parseFloat(e.brix) || 0), 0) / 3;
+      const falling = late < avg * 0.85;
+      if (falling) {
+        results.push({
+          id: 'brix_trend',
+          severity: 'low',
+          title: 'Sap Brix declining — season may be ending',
+          summary: `Recent average ${late.toFixed(2)}°Brix vs. season avg ${avg.toFixed(2)}°Brix. Declining Brix often signals season close.`,
+          action: 'When Brix drops below 1.5–1.8° consistently and nights stop freezing, consider pulling taps to prevent bark damage and bacterial buildup.',
+          effort: 'Low',
+          payback: 'Pulling taps at the right time prevents tree stress and preserves next year\'s yield',
+          roi: 0,
+          details: [
+            `Season average: ${avg.toFixed(2)}°Brix  |  Last 3 readings avg: ${late.toFixed(2)}°Brix`,
+            'Brix naturally declines as trees break dormancy',
+            'Buddy sap (>1% green taste) is unacceptable for syrup',
+            'Source: Maine MPA — When to Pull Taps',
+          ],
+        });
+      } else {
+        results.push({
+          id: 'brix_trend',
+          severity: 'good',
+          title: 'Sap Brix is stable this season',
+          summary: `${brixEntries.length} readings avg ${avg.toFixed(2)}°Brix. No concerning decline yet.`,
+          roi: 0,
+        });
+      }
+    }
+
+    // ── 9. Labor efficiency ───────────────────────────────────────────────
+    const collectionEntries = (slog.sapCollected || []).length;
+    if (collectionEntries > 0 && syrupGal > 0 && laborRate > 0) {
+      const estHours = collectionEntries * 2 + syrupGal * 0.5; // rough: 2h/collection + 30min/gal syrup
+      const laborCost = estHours * laborRate;
+      const revEstimate = syrupGal * syrupPrice;
+      const laborPct = (laborCost / revEstimate) * 100;
+      if (laborPct > 45) {
+        results.push({
+          id: 'labor',
+          severity: 'low',
+          title: 'Labor costs are a significant portion of revenue',
+          summary: `Estimated ~${estHours.toFixed(0)} labor hours at $${laborRate}/hr = $${laborCost.toFixed(0)} (${laborPct.toFixed(0)}% of ~$${revEstimate.toFixed(0)} revenue).`,
+          action: 'Look at bulk sales to sugarhouses, shared equipment co-ops, or automating collection scheduling. Vacuum systems with fewer collection trips improve labor per gallon.',
+          effort: 'Medium',
+          payback: 'Reducing labor to <30% of revenue is a common benchmark for profitability',
+          roi: Math.max(0, laborCost - revEstimate * 0.3),
+          details: [
+            `Collection events logged: ${collectionEntries}  |  Syrup produced: ${syrupGal.toFixed(1)} gal`,
+            `Labor estimate: ${estHours.toFixed(0)} hrs × $${laborRate}/hr = $${laborCost.toFixed(0)}`,
+            `Revenue estimate: ${syrupGal.toFixed(1)} gal × $${syrupPrice} = $${revEstimate.toFixed(0)}`,
+            `Labor as % of revenue: ${laborPct.toFixed(0)}%  |  Industry target: <30%`,
+            'Source: USDA NASS Maple Syrup Production Survey',
+          ],
+        });
+      } else {
+        results.push({
+          id: 'labor',
+          severity: 'good',
+          title: 'Labor costs look manageable',
+          summary: `Est. ${estHours.toFixed(0)} hrs at $${laborRate}/hr is ${laborPct.toFixed(0)}% of estimated revenue — within range.`,
+          roi: 0,
+        });
+      }
+    }
+
+    // ── Sort: high → medium → low → good, then by ROI descending ─────────
+    const order = { high: 0, medium: 1, low: 2, good: 3 };
+    results.sort((a, b) => {
+      const od = (order[a.severity] || 3) - (order[b.severity] || 3);
+      return od !== 0 ? od : (b.roi || 0) - (a.roi || 0);
+    });
+
+    setFindings(results);
+    setRan(true);
+  }
+
+  // ── Severity styling ───────────────────────────────────────────────────────
+  const sevStyle = {
+    high:   { bg:'rgba(239,68,68,0.12)',   border:'rgba(239,68,68,0.35)',   dot:'#ef4444', label:'High Priority'   },
+    medium: { bg:'rgba(245,158,11,0.12)',  border:'rgba(245,158,11,0.35)',  dot:'#f59e0b', label:'Opportunity'     },
+    low:    { bg:'rgba(99,102,241,0.12)',  border:'rgba(99,102,241,0.35)',  dot:'#6366f1', label:'Watch'           },
+    good:   { bg:'rgba(45,212,167,0.08)', border:'rgba(45,212,167,0.25)', dot:'#2dd4a7', label:'Looking Good'    },
+  };
+
+  const Card = ({ f }) => {
+    const s = sevStyle[f.severity] || sevStyle.good;
+    const open = expanded[f.id];
+    return (
+      <div style={{ background: s.bg, border:`1px solid ${s.border}`, borderRadius:14, marginBottom:10, overflow:'hidden' }}>
+        <button
+          onClick={() => setExpanded(prev => ({ ...prev, [f.id]: !prev[f.id] }))}
+          style={{ width:'100%', background:'none', border:'none', cursor:'pointer', padding:'14px 16px', textAlign:'left', display:'flex', alignItems:'flex-start', gap:10 }}
+        >
+          <div style={{ width:10, height:10, borderRadius:'50%', background:s.dot, flexShrink:0, marginTop:4 }} />
+          <div style={{ flex:1 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+              <div style={{ fontWeight:700, fontSize:14, color:'#e2eaf4', lineHeight:1.3 }}>{f.title}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                {f.roi > 0 && (
+                  <span style={{ background:'rgba(45,212,167,0.15)', border:'1px solid rgba(45,212,167,0.3)', borderRadius:10, padding:'2px 8px', fontSize:11, fontWeight:700, color:'#2dd4a7' }}>
+                    ${f.roi >= 1000 ? (f.roi/1000).toFixed(1)+'k' : f.roi.toFixed(0)} ROI
+                  </span>
+                )}
+                <span style={{ background:'rgba(255,255,255,0.06)', borderRadius:8, padding:'2px 8px', fontSize:11, color:'#5a6a7a', fontWeight:600 }}>{s.label}</span>
+                <I.chevDown size={14} color="#3d5068" style={{ transform: open ? 'rotate(180deg)' : 'none', transition:'0.18s' }} />
+              </div>
+            </div>
+            <div style={{ fontSize:12, color:'#8a9ab0', marginTop:4, lineHeight:1.5 }}>{f.summary}</div>
+          </div>
+        </button>
+        {open && (
+          <div style={{ borderTop:`1px solid ${s.border}`, padding:'14px 16px 16px', paddingLeft:36 }}>
+            {f.action && (
+              <div style={{ background:'rgba(45,212,167,0.08)', border:'1px solid rgba(45,212,167,0.2)', borderRadius:10, padding:'10px 14px', marginBottom:12 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:'#2dd4a7', marginBottom:4 }}>Recommended Action</div>
+                <div style={{ fontSize:13, color:'#c8d8e8', lineHeight:1.55 }}>{f.action}</div>
+              </div>
+            )}
+            {f.payback && (
+              <div style={{ fontSize:12, color:'#f59e0b', fontWeight:600, marginBottom:10 }}>
+                💰 {f.payback}
+              </div>
+            )}
+            {f.effort && (
+              <div style={{ fontSize:12, color:'#5a6a7a', marginBottom:10 }}>
+                <span style={{ color:'#8a9ab0', fontWeight:600 }}>Effort: </span>{f.effort}
+              </div>
+            )}
+            {f.details && f.details.length > 0 && (
+              <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:10, marginTop:4 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'#3d5068', marginBottom:6, letterSpacing:'0.05em', textTransform:'uppercase' }}>Details & Sources</div>
+                {f.details.map((d, i) => (
+                  <div key={i} style={{ fontSize:12, color:'#6a7a8a', lineHeight:1.5, marginBottom:3, paddingLeft:8, borderLeft:'2px solid rgba(255,255,255,0.06)' }}>{d}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const hasLogs = (() => {
+    const slog = (ls.get('sg_logs2', {}))[season] || {};
+    return (slog.sapCollected || []).length > 0 || (slog.syrupMade || []).length > 0;
+  })();
+
+  return (
+    <div style={{ padding:'16px 14px 40px' }}>
+      <div style={{ fontWeight:800, fontSize:20, marginBottom:4 }}>Diagnose My Operation</div>
+      <div style={{ fontSize:13, color:'#5a6a7a', marginBottom:18, lineHeight:1.5 }}>
+        Rule-based bottleneck analysis using your {season} log data and industry benchmarks.
+      </div>
+
+      {/* ── Inputs ── */}
+      <div style={{ background:'#0d1a2b', border:'1px solid #1a304a', borderRadius:14, padding:'14px 16px', marginBottom:16 }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'#3d5068', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:12 }}>Operation Inputs</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div>
+            <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:4 }}>Syrup price ($/gal)</div>
+            <input type="number" value={syrupPrice} onChange={e => save('sg_dx_price', setSyrupPrice)(parseFloat(e.target.value)||0)}
+              style={{ width:'100%', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'7px 10px', color:'#e2eaf4', fontSize:14, fontWeight:600, boxSizing:'border-box' }} />
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:4 }}>Wood cost ($/cord)</div>
+            <input type="number" value={woodCost} onChange={e => save('sg_dx_wood', setWoodCost)(parseFloat(e.target.value)||0)}
+              style={{ width:'100%', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'7px 10px', color:'#e2eaf4', fontSize:14, fontWeight:600, boxSizing:'border-box' }} />
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:4 }}>Labor rate ($/hr)</div>
+            <input type="number" value={laborRate} onChange={e => save('sg_dx_labor', setLaborRate)(parseFloat(e.target.value)||0)}
+              style={{ width:'100%', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'7px 10px', color:'#e2eaf4', fontSize:14, fontWeight:600, boxSizing:'border-box' }} />
+          </div>
+          <div>
+            <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:4 }}>RO output (°Brix)</div>
+            <input type="number" value={roOutBrix} onChange={e => save('sg_dx_robrix', setRoOutBrix)(parseFloat(e.target.value)||0)}
+              style={{ width:'100%', background:'#0a1420', border:'1px solid #1e2d3d', borderRadius:8, padding:'7px 10px', color:'#e2eaf4', fontSize:14, fontWeight:600, boxSizing:'border-box' }}
+              placeholder="0 = no RO" />
+          </div>
+        </div>
+        <div style={{ marginTop:10 }}>
+          <div style={{ fontSize:11, color:'#5a6a7a', marginBottom:4 }}>Vacuum system</div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {[['gravity','Gravity'],['vac15','15" Vacuum'],['high','High Vac (25"+)']].map(([val,lbl]) => (
+              <button key={val} onClick={() => save('sg_dx_vac', setVacLevel)(val)}
+                style={{ background: vacLevel===val ? 'rgba(45,212,167,0.2)' : '#0a1420', border:`1px solid ${vacLevel===val ? '#2dd4a7' : '#1e2d3d'}`, borderRadius:8, padding:'6px 12px', color: vacLevel===val ? '#2dd4a7' : '#5a6a7a', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Run button ── */}
+      {!hasLogs && (
+        <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:12, padding:'12px 16px', marginBottom:14, fontSize:13, color:'#f59e0b', lineHeight:1.5 }}>
+          ⚠️ No {season} log data found. Add sap and syrup entries in the Log tab first for a full diagnosis.
+        </div>
+      )}
+
+      <button
+        onClick={runDiagnostics}
+        style={{ width:'100%', background:'linear-gradient(135deg,#2dd4a7,#1fbf94)', border:'none', borderRadius:12, padding:'14px', fontWeight:800, fontSize:15, color:'#07090f', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginBottom:20, boxShadow:'0 4px 20px rgba(45,212,167,0.3)' }}
+      >
+        <I.zap size={18} color="#07090f" />
+        Run Diagnosis — {season} Season
+      </button>
+
+      {/* ── Results ── */}
+      {ran && findings && (
+        <>
+          {/* Summary bar */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16 }}>
+            {['high','medium','low','good'].map(sev => {
+              const count = findings.filter(f => f.severity === sev).length;
+              const s = sevStyle[sev];
+              return (
+                <div key={sev} style={{ background:s.bg, border:`1px solid ${s.border}`, borderRadius:10, padding:'8px 6px', textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:s.dot }}>{count}</div>
+                  <div style={{ fontSize:10, color:'#5a6a7a', fontWeight:600, lineHeight:1.3 }}>{s.label}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {findings.length === 0 && (
+            <div style={{ textAlign:'center', color:'#5a6a7a', padding:'30px 0', fontSize:14 }}>
+              No issues detected — add more log data for a richer diagnosis.
+            </div>
+          )}
+
+          {findings.map(f => <Card key={f.id} f={f} />)}
+
+          {/* Total ROI banner */}
+          {findings.reduce((s, f) => s + (f.roi || 0), 0) > 0 && (
+            <div style={{ background:'rgba(45,212,167,0.1)', border:'1px solid rgba(45,212,167,0.3)', borderRadius:14, padding:'14px 16px', marginTop:8, textAlign:'center' }}>
+              <div style={{ fontSize:12, color:'#5a6a7a', marginBottom:4 }}>Total identified opportunity</div>
+              <div style={{ fontSize:26, fontWeight:800, color:'#2dd4a7' }}>
+                ${findings.reduce((s, f) => s + (f.roi || 0), 0).toLocaleString('en-US', { maximumFractionDigits:0 })}
+              </div>
+              <div style={{ fontSize:11, color:'#3d5068', marginTop:4 }}>estimated annual improvement potential</div>
+            </div>
+          )}
+
+          {/* Benchmarks footer */}
+          <div style={{ marginTop:18, padding:'12px 14px', background:'#080f18', border:'1px solid #131e2c', borderRadius:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:'#2d3d4d', letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>Benchmark Sources</div>
+            {[
+              'UVM Proctor Maple Research Center — Vermont maple production data',
+              'Cornell Maple Program — RO, sugaring efficiency, and industry guides',
+              'Maine Maple Producers Association (MPA) — tapping and operation guides',
+              'USDA NASS — Annual Maple Syrup Production Survey',
+            ].map((s, i) => (
+              <div key={i} style={{ fontSize:11, color:'#3d5068', lineHeight:1.5, marginBottom:2 }}>• {s}</div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [tab,      setTab]      = useState('sap');
   const [units,    setUnits]    = useState(()=>ls.get('sg_units','GAL'));
@@ -4193,11 +5628,13 @@ function App() {
     { id:'tapping', Icon:I.mapleLeaf,   label:t(lang,'tabTapping') },
     { id:'boilpt',  Icon:I.mapPin,      label:t(lang,'tabBoilPt')  },
     { id:'season',  Icon:I.trendUp,     label:t(lang,'tabSeason')  },
+    { id:'recap',   Icon:I.mapleLeaf,   label:'Season Recap'       },
     { id:'log',     Icon:I.package,     label:t(lang,'tabLog')     },
     { id:'equip',   Icon:I.wrench,      label:t(lang,'tabEquip')   },
     { id:'tasks',   Icon:I.clipboard,   label:t(lang,'tabTasks')   },
     { id:'weather', Icon:I.snowflake,   label:'Weather'            },
-    ...(BETA_FEATURES ? [{ id:'lines', Icon:I.tree, label:'Lines 🧪' }] : []),
+    ...(BETA_FEATURES ? [{ id:'lines',    Icon:I.tree, label:'Lines 🧪'    }] : []),
+    ...(BETA_FEATURES ? [{ id:'diagnose', Icon:I.zap,  label:'Diagnose 🧪' }] : []),
   ];
 
   return (
@@ -4261,11 +5698,13 @@ function App() {
           {tab==='tapping' && <TappingTab sapBrix={sapBrix} trees={trees} setTrees={setTrees} units={units} lang={lang} />}
           {tab==='boilpt'  && <BoilPtTab  waterBP={waterBP} setWaterBP={setWaterBP} lang={lang} />}
           {tab==='season'  && <SeasonTab  season={season} lang={lang} />}
+          {tab==='recap'   && <RecapTab   season={season} units={units} sapBrix={sapBrix} lang={lang} />}
           {tab==='log'     && <LogTab     season={season} setSeason={setSeason} trees={trees} setTrees={setTrees} units={units} sapBrix={sapBrix} lang={lang} />}
           {tab==='equip'   && <EquipTab lang={lang} />}
           {tab==='tasks'   && <TasksTab   season={season} lang={lang} />}
           {tab==='weather' && <WeatherTab lang={lang} />}
-          {BETA_FEATURES && tab==='lines' && <LinesTab lang={lang} />}
+          {BETA_FEATURES && tab==='lines'    && <LinesTab lang={lang} />}
+          {BETA_FEATURES && tab==='diagnose' && <DiagnoseTab season={season} trees={trees} units={units} sapBrix={sapBrix} lang={lang} />}
 
           {/* ── Notification enable prompt ── */}
           {'Notification' in window && Notification.permission === 'default' && ls.get('sg_ddlat',null) && (
