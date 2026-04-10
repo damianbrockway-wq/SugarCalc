@@ -2235,8 +2235,18 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
 
       <LogSection label={t(lang,'sapCollected')} logKey="sapCollected" color="#2dd4a7" icon="package" showBrix={true}
         onAdd={(amount, date, note) => {
-          if (autoCopy.ro)   updLog('sapRO',   [...(slog['sapRO']  ||[]), { id:Date.now(),    date, val:amount, note:'← auto from sap collected' }]);
-          if (autoCopy.evap) updLog('sapEvap', [...(slog['sapEvap']||[]), { id:Date.now()+1,  date, val:amount, note:'← auto from sap collected' }]);
+          if (!autoCopy.ro && !autoCopy.evap) return;
+          // Use functional updater so both RO + Evap are written atomically
+          // (avoids stale-closure overwrite when both boxes are checked)
+          setLogs(prevLogs => {
+            const prevSlog = prevLogs[season] || empty;
+            const updates  = { ...prevSlog };
+            if (autoCopy.ro)   updates.sapRO   = [...(prevSlog.sapRO  ||[]), { id:Date.now(),   date, val:amount, note:'← auto from sap collected' }];
+            if (autoCopy.evap) updates.sapEvap = [...(prevSlog.sapEvap||[]), { id:Date.now()+1, date, val:amount, note:'← auto from sap collected' }];
+            const up = { ...prevLogs, [season]: updates };
+            ls.set('sg_logs2', up);
+            return up;
+          });
         }}
       />
       <LogSection label={t(lang,'syrupMade')}    logKey="syrupMade"    color="#e0a44a" icon="droplet" showGrade={true} />
@@ -2929,33 +2939,29 @@ function _analyzeSegGrades(pts) {
   return { segs, minGrade: minGrade === Infinity ? 0 : minGrade, overallGrade, totalDist, totalDrop };
 }
 
-async function _findBestPath(fromPin, toPin) {
-  // Direct line — 10 segments, all points batched in one API call
-  const directPts = await _samplePathElev(fromPin.lat, fromPin.lon, toPin.lat, toPin.lon, 10);
-  const directA = _analyzeSegGrades(directPts);
-  if (directA.minGrade >= 1.0) return { pts: directPts, analysis: directA, improved: false };
-  // Try waypoint offsets perpendicular to the direct line
-  const dLat = toPin.lat - fromPin.lat, dLon = toPin.lon - fromPin.lon;
-  const len = Math.sqrt(dLat ** 2 + dLon ** 2) || 1;
-  const pLat = -dLon / len, pLon = dLat / len;
-  let best = { pts: directPts, analysis: directA, improved: false };
-  // Larger perpendicular offsets (15m to 150m range) — avoids subtle terrain obstacles
-  for (const off of [-0.0002, 0.0002, -0.0005, 0.0005, -0.001, 0.001, -0.0015, 0.0015]) {
-    try {
-      const mLat = (fromPin.lat + toPin.lat) / 2 + pLat * off;
-      const mLon = (fromPin.lon + toPin.lon) / 2 + pLon * off;
-      // Both sub-segments batched in two calls (each all-at-once)
-      const [seg1, seg2] = await Promise.all([
-        _samplePathElev(fromPin.lat, fromPin.lon, mLat, mLon, 5),
-        _samplePathElev(mLat, mLon, toPin.lat, toPin.lon, 5)
-      ]);
-      const combined = [...seg1, ...seg2.slice(1)];
-      const a = _analyzeSegGrades(combined);
-      if (a.minGrade > best.analysis.minGrade) best = { pts: combined, analysis: a, improved: true };
-      if (best.analysis.minGrade >= 1.0) break; // Good enough — stop early
-    } catch {}
-  }
-  return best;
+// Draw route lines — one polyline per segment, colored by grade
+// results is an array of line objects from analyzeRoutes
+function _drawRouteLines(results) {
+  _clearRouteLines();
+  if (!_lMap || !window.L) return;
+  results.forEach(r => {
+    r.segments.forEach(seg => {
+      const color = _gradeColor(seg.grade);
+      const line = window.L.polyline(
+        [[seg.from.lat, seg.from.lon], [seg.to.lat, seg.to.lon]],
+        { color, weight: seg.isToTank ? 5 : 3, opacity: 0.92,
+          dashArray: seg.grade < 1.0 ? '8,5' : null }
+      ).addTo(_lMap);
+      const fromName = seg.from.label || 'Pin';
+      const toName   = seg.to.label   || 'Pin';
+      line.bindPopup(
+        `<b>${fromName} → ${toName}</b><br/>` +
+        `Grade: <b>${seg.grade.toFixed(2)}%</b><br/>` +
+        `Drop: ${Math.abs(seg.drop).toFixed(1)} ft &nbsp;·&nbsp; Dist: ${seg.dist.toFixed(0)} ft`
+      );
+      _lRouteLines.push(line);
+    });
+  });
 }
 
 function _gradeColor(g) {
@@ -2971,25 +2977,8 @@ function _clearSpotMarkers() {
   _lSpotMarkers = [];
 }
 
-function _drawRoutePaths(results) {
-  _clearRouteLines();
-  if (!_lMap || !window.L) return;
-  results.forEach(route => {
-    if (!route?.analysis?.segs) return;
-    route.analysis.segs.forEach(seg => {
-      const color = _gradeColor(seg.grade);
-      const line = window.L.polyline(
-        [[seg.from.lat, seg.from.lon],[seg.to.lat, seg.to.lon]],
-        { color, weight:5, opacity:0.9, dashArray: seg.grade < 1.0 ? '8,5' : null }
-      ).addTo(_lMap);
-      line.bindPopup(
-        `<b>${route.fromLabel} → ${route.toLabel}</b><br/>` +
-        `Grade: <b>${seg.grade.toFixed(2)}%</b> · Drop: ${Math.abs(seg.drop).toFixed(1)} ft over ${seg.dist.toFixed(0)} ft`
-      );
-      _lRouteLines.push(line);
-    });
-  });
-}
+// Legacy stub — new code calls _drawRouteLines directly
+function _drawRoutePaths(results) { _drawRouteLines(results); }
 
 // Inline SVG strings for Leaflet map markers (no emoji — renders consistently cross-platform)
 const _TANK_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
@@ -3217,12 +3206,21 @@ function LinesTab({ lang='en' }) {
   // Analyze routes — uses existing pin elevations (instant, always works) then
   // optionally refines with a single terrain-profile batch call per pair.
   const analyzeRoutes = async () => {
+    // ── NEW LINE-BASED ANALYSIS ──────────────────────────────────────────────
+    // Philosophy: sap lines are not individual tree→tank connections.
+    // They're a series of trees connected in sequence (highest → lowest)
+    // running down to a collection tank.  We build one "line" per tank,
+    // assign each tree to its best-fit tank, sort trees by elevation,
+    // then compute grade between every consecutive node in the line.
+    // ────────────────────────────────────────────────────────────────────────
     const allTrees = pinsRef.current.filter(p => p.type==='tree');
     const allTanks = pinsRef.current.filter(p => p.type==='tank');
-    if (!allTrees.length) { setRouteMsg('❌ Place at least 1 tree on the map first.'); return; }
-    if (!allTanks.length) { setRouteMsg('❌ Place at least 1 tank on the map first.'); return; }
+    if (!allTrees.length) { setRouteMsg('❌ Place at least 1 tree pin on the map first.'); return; }
+    if (!allTanks.length) { setRouteMsg('❌ Place at least 1 tank pin on the map first.'); return; }
+
     setRouteMsg(''); setRouteProgress(''); setAnalyzing(true); setRouteResults([]); _clearRouteLines();
-    // Fetch any missing elevations before starting analysis
+
+    // 1. Ensure elevations for all pins
     try {
       await ensureElevations(allTrees, 'tree pin(s)');
       await ensureElevations(allTanks, 'tank pin(s)');
@@ -3231,75 +3229,63 @@ function LinesTab({ lang='en' }) {
       setAnalyzing(false); setRouteProgress(''); return;
     }
     const trees = pinsRef.current.filter(p => p.type==='tree' && p.elev!=null);
-    const tanks  = pinsRef.current.filter(p => p.type==='tank' && p.elev!=null);
-    if (!trees.length) { setRouteMsg('❌ Elevation unavailable for trees — try again or check your location.'); setAnalyzing(false); setRouteProgress(''); return; }
-    if (!tanks.length) { setRouteMsg('❌ Elevation unavailable for tanks — try again or check your location.'); setAnalyzing(false); setRouteProgress(''); return; }
+    const tanks = pinsRef.current.filter(p => p.type==='tank' && p.elev!=null);
+    if (!trees.length) { setRouteMsg('❌ Elevation unavailable for trees.'); setAnalyzing(false); setRouteProgress(''); return; }
+    if (!tanks.length) { setRouteMsg('❌ Elevation unavailable for tanks.'); setAnalyzing(false); setRouteProgress(''); return; }
+
+    // 2. Assign each tree to the tank it flows to best (highest grade to that tank)
+    const byTank = {};
+    tanks.forEach(tank => { byTank[tank.id] = { tank, trees: [] }; });
+    trees.forEach(tree => {
+      let bestTank = null, bestGrade = -Infinity;
+      tanks.forEach(tank => {
+        const dist  = haversineFt(tree.lat, tree.lon, tank.lat, tank.lon);
+        const grade = dist > 0 ? ((tree.elev - tank.elev) / dist) * 100 : -999;
+        if (grade > bestGrade) { bestGrade = grade; bestTank = tank; }
+      });
+      if (bestTank) byTank[bestTank.id].trees.push(tree);
+    });
+
     const results = [];
-    try {
-      const sorted = [...trees].sort((a,b) => (b.elev||0)-(a.elev||0));
-      for (let ti = 0; ti < sorted.length; ti++) {
-        const tree = sorted[ti];
-        setRouteProgress(`${ti+1}/${sorted.length}: ${tree.label}…`);
+    for (const { tank, trees: lineTrees } of Object.values(byTank)) {
+      if (!lineTrees.length) continue;
+      setRouteProgress(`Building line → ${tank.label}…`);
 
-        // Step 1 — rank tanks by straight-line grade using already-fetched pin elevations.
-        // This requires zero API calls and always produces a result.
-        const rankedTanks = tanks.map(tank => {
-          const distFt = haversineFt(tree.lat, tree.lon, tank.lat, tank.lon);
-          const grade  = distFt > 0 ? ((tree.elev - tank.elev) / distFt) * 100 : -999;
-          return { ...tank, _distFt: distFt, _grade: grade };
-        }).sort((a,b) => b._grade - a._grade);
-        const best = rankedTanks[0];
-        if (!best) continue;
+      // 3. Sort trees highest→lowest (natural line flow order)
+      const sorted = [...lineTrees].sort((a, b) => (b.elev||0) - (a.elev||0));
 
-        // Build a straight-line result we can always fall back to
-        const slSeg = {
-          from: { lat:tree.lat, lon:tree.lon, elev:tree.elev },
-          to:   { lat:best.lat, lon:best.lon,  elev:best.elev },
-          dist: best._distFt, drop: tree.elev - best.elev, grade: best._grade,
-        };
-        const slAnalysis = {
-          segs: [slSeg], minGrade: best._grade, overallGrade: best._grade,
-          totalDist: best._distFt, totalDrop: tree.elev - best.elev,
-        };
+      // 4. Build node list: [tree1, tree2, ..., treeN, tank]
+      //    Compute grade between every consecutive pair
+      const lineNodes = [...sorted, tank];
+      const segments  = [];
+      let totalDist = 0, totalDrop = 0;
 
-        // Step 2 — try a single terrain-profile batch call (8 intermediate points).
-        // One HTTP request; if it fails or times out we keep the straight-line result.
-        let finalResult = { pts:[slSeg.from, slSeg.to], analysis:slAnalysis,
-                            fromLabel:tree.label, toLabel:best.label, improved:false };
-        try {
-          setRouteProgress(`${ti+1}/${sorted.length}: terrain profile ${tree.label} → ${best.label}…`);
-          const N = 8;
-          const pathPts = Array.from({ length: N+1 }, (_,i) => ({
-            lat: tree.lat + (best.lat - tree.lat) * (i/N),
-            lon: tree.lon + (best.lon - tree.lon) * (i/N),
-          }));
-          const elevs = await _fetchElevBatch(pathPts);
-          const withElev = pathPts.map((p,i) => ({ ...p, elev: elevs[i] }));
-          const validCount = withElev.filter(p => p.elev != null).length;
-          if (validCount >= 5) { // at least 5 of 9 points returned data
-            // Fill any null gaps by linear interpolation between neighbours
-            const filled = withElev.map((p, i) => {
-              if (p.elev != null) return p;
-              const prev = withElev.slice(0,i).reverse().find(x=>x.elev!=null);
-              const next = withElev.slice(i+1).find(x=>x.elev!=null);
-              const e = (prev && next) ? (prev.elev+next.elev)/2 : prev?.elev ?? next?.elev ?? null;
-              return { ...p, elev: e };
-            });
-            const terrainA = _analyzeSegGrades(filled);
-            if (terrainA.segs.length > 0) {
-              finalResult = { pts:filled, analysis:terrainA,
-                              fromLabel:tree.label, toLabel:best.label, improved:false };
-            }
-          }
-        } catch { /* terrain API unavailable — straight-line result stands */ }
-
-        results.push(finalResult);
+      for (let i = 0; i < lineNodes.length - 1; i++) {
+        const from = lineNodes[i];
+        const to   = lineNodes[i + 1];
+        const dist = haversineFt(from.lat, from.lon, to.lat, to.lon);
+        const drop = (from.elev||0) - (to.elev||0);
+        const grade = dist > 0 ? (drop / dist) * 100 : 0;
+        segments.push({ from, to, dist, drop, grade, isToTank: i === lineNodes.length - 2 });
+        totalDist += dist;
+        totalDrop += drop;
       }
-      setRouteResults(results);
-      _drawRoutePaths(results);
-      setRouteProgress('');
-      if (!results.length) setRouteMsg('⚠ No routes — verify pins have elevations loaded.');
-    } catch(e) { setRouteMsg('❌ Error: ' + e.message); setRouteProgress(''); }
+
+      const grades      = segments.map(s => s.grade);
+      const minGrade    = Math.min(...grades);
+      const maxGrade    = Math.max(...grades);
+      const overallGrade = totalDist > 0 ? (totalDrop / totalDist) * 100 : 0;
+      const badSegs     = segments.filter(s => s.grade < 1.0);
+      const goodFlow    = minGrade >= 1.0;
+
+      results.push({ tank, trees: sorted, lineNodes, segments,
+        minGrade, maxGrade, overallGrade, totalDist, totalDrop, badSegs, goodFlow });
+    }
+
+    setRouteResults(results);
+    _drawRouteLines(results);
+    setRouteProgress('');
+    if (!results.length) setRouteMsg('⚠ No routes — verify pins have elevations loaded.');
     setAnalyzing(false);
   };
 
@@ -3379,7 +3365,7 @@ function LinesTab({ lang='en' }) {
   const tankPins = pins.filter(p=>p.type==='tank');
   const readyTrees = treePins.filter(p=>p.elev!=null).length;
   const readyTanks = tankPins.filter(p=>p.elev!=null).length;
-  const gravityTrees = routeResults.filter(r => r.analysis?.overallGrade >= 1.0).length;
+  const gravityLines = routeResults.filter(r => r.goodFlow).length;
 
   return (
     <div>
@@ -3447,7 +3433,7 @@ function LinesTab({ lang='en' }) {
           {routeResults.length > 0 && (
             <>
               <span style={{color:'#1e2d3d'}}>·</span>
-              <span style={{ color:gravityTrees===treePins.length&&treePins.length>0?'#3fb950':'#f0883e', fontWeight:600 }}>{gravityTrees}/{treePins.length} gravity flow</span>
+              <span style={{ color:gravityLines===routeResults.length&&routeResults.length>0?'#3fb950':'#f0883e', fontWeight:600 }}>{gravityLines}/{routeResults.length} line{routeResults.length!==1?'s':''} ✓</span>
             </>
           )}
         </div>
@@ -3479,63 +3465,122 @@ function LinesTab({ lang='en' }) {
       {/* Route results */}
       {routeResults.length > 0 && (
         <div className="card">
+          {/* Header */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
             <div className="card-title" style={{ marginBottom:0 }}>
               <CardIcon bg="#0d2b15" icon="trendUp" />
-              Routes — {routeResults.length} line{routeResults.length!==1?'s':''}
+              {routeResults.length} Line{routeResults.length!==1?'s':''} · {routeResults.reduce((s,r)=>s+r.trees.length,0)} Trees
             </div>
             <button className="btn-secondary" style={{ padding:'5px 12px', fontSize:12 }} onClick={clearRoutes}>Clear</button>
           </div>
-          {routeResults.map((r,i) => {
-            const col = _gradeColor(r.analysis.overallGrade);
-            const lbl = r.analysis.overallGrade < 0 ? '⚠ Uphill — no gravity flow'
-              : r.analysis.overallGrade < 0.5 ? '⚠ Too flat — sap pools'
-              : r.analysis.overallGrade < 1.0 ? '↗ Marginal — vacuum assist recommended'
-              : r.analysis.overallGrade <= 6   ? '✓ Good gravity flow'
-              : '⚠ Very steep — check fittings';
+
+          {routeResults.map((r, ri) => {
+            const col = _gradeColor(r.overallGrade);
+            const statusIcon = r.goodFlow ? '✓' : r.overallGrade < 0 ? '⚠' : r.minGrade < 0.5 ? '⚠' : '↗';
+            const statusText = r.overallGrade < 0    ? 'Uphill — no gravity flow'
+              : r.minGrade < 0.5  ? 'Too flat — sap pools. Vacuum needed.'
+              : r.minGrade < 1.0  ? 'Marginal — vacuum assist recommended'
+              : r.overallGrade > 6 ? 'Very steep — check fittings & connections'
+              : 'Good gravity flow';
+
             return (
-              <div key={i} style={{ background:'#0f1720', borderRadius:10, padding:'12px 14px', marginBottom:8, border:`1px solid ${col}44` }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                  <div style={{ fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:5, cursor:'pointer', flex:1 }}
-                    onClick={() => {
-                      const t2 = pinsRef.current.find(p=>p.label===r.fromLabel);
-                      const tk = pinsRef.current.find(p=>p.label===r.toLabel);
-                      if (t2 && tk && _lMap) _lMap.fitBounds([[t2.lat,t2.lon],[tk.lat,tk.lon]], {padding:[40,40]});
-                    }}>
-                    <I.tree size={14} color="#3fb950" /> {r.fromLabel}
-                    <span style={{color:'#3d5068'}}>→</span>
-                    <I.tank size={14} color="#58a6ff" /> {r.toLabel}
+              <div key={r.tank.id} style={{ background:'#0f1720', borderRadius:12, padding:'12px 14px', marginBottom:10, border:`1px solid ${col}44` }}>
+
+                {/* Line header — click to zoom */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, cursor:'pointer' }}
+                  onClick={() => {
+                    if (!_lMap) return;
+                    const pts = r.lineNodes.map(n => [n.lat, n.lon]);
+                    if (pts.length >= 2) _lMap.fitBounds(pts, { padding:[40,40] });
+                  }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7, flex:1, minWidth:0 }}>
+                    <I.tank size={15} color="#58a6ff" />
+                    <span style={{ fontWeight:700, fontSize:14, color:'#c9d1d9' }}>{r.tank.label}</span>
+                    <span style={{ fontSize:11, color:'#5a6a7a', flexShrink:0 }}>
+                      · {r.trees.length} tree{r.trees.length!==1?'s':''}
+                    </span>
                   </div>
-                  <div style={{ fontWeight:800, color:col, fontSize:17, flexShrink:0 }}>{r.analysis.overallGrade.toFixed(2)}%</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                    <span style={{ fontSize:10, color:'#5a6a7a' }}>overall</span>
+                    <span style={{ fontWeight:800, color:col, fontSize:18 }}>{r.overallGrade.toFixed(1)}%</span>
+                  </div>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:6 }}>
+
+                {/* Flow visualization — scrollable row of nodes + grade connectors */}
+                <div style={{ overflowX:'auto', paddingBottom:4, marginBottom:10 }}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:0, minWidth:'max-content' }}>
+                    {r.lineNodes.map((node, ni) => {
+                      const seg = r.segments[ni]; // connector AFTER this node
+                      const isTank = node.type === 'tank';
+                      const nc = isTank ? '#58a6ff' : '#3fb950';
+                      return (
+                        <React.Fragment key={node.id}>
+                          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, padding:'0 2px' }}>
+                            <div style={{ width:30, height:30, borderRadius: isTank ? 6 : '50%', background:nc+'22', border:`2px solid ${nc}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              {isTank ? <I.tank size={13} color={nc} /> : <I.tree size={13} color={nc} />}
+                            </div>
+                            <span style={{ fontSize:9, color:'#8b949e', maxWidth:52, textAlign:'center', lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{node.label}</span>
+                            <span style={{ fontSize:9, color:'#5a6a7a' }}>{node.elev!=null ? node.elev.toFixed(0)+'ft' : '—'}</span>
+                          </div>
+                          {seg && (
+                            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:'0 0 auto', padding:'0 1px', marginTop:-12 }}>
+                              <span style={{ fontSize:10, fontWeight:700, color:_gradeColor(seg.grade) }}>{seg.grade.toFixed(1)}%</span>
+                              <div style={{ height:3, width:44, background:_gradeColor(seg.grade), borderRadius:2, opacity:0.9 }} />
+                              <span style={{ fontSize:8, color:'#3d5068' }}>
+                                {seg.dist < 5280 ? seg.dist.toFixed(0)+'ft' : (seg.dist/5280).toFixed(2)+'mi'}
+                              </span>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:4, marginBottom:8 }}>
                   {[
-                    { l:'DISTANCE', v: r.analysis.totalDist<5280 ? r.analysis.totalDist.toFixed(0)+' ft' : (r.analysis.totalDist/5280).toFixed(2)+' mi' },
-                    { l:'TOTAL DROP', v: Math.abs(r.analysis.totalDrop).toFixed(1)+' ft' },
-                    { l: r.analysis.segs.length > 1 ? 'WORST SEG' : 'GRADE', v: r.analysis.minGrade.toFixed(2)+'%' },
+                    { l:'OVERALL', v: r.overallGrade.toFixed(2)+'%', c: col },
+                    { l:'WORST SEG', v: r.minGrade.toFixed(2)+'%', c: _gradeColor(r.minGrade) },
+                    { l:'TOTAL DROP', v: Math.abs(r.totalDrop).toFixed(1)+' ft', c:'#c9d1d9' },
+                    { l:'LINE LENGTH', v: r.totalDist<5280 ? r.totalDist.toFixed(0)+' ft' : (r.totalDist/5280).toFixed(2)+' mi', c:'#c9d1d9' },
                   ].map(item => (
-                    <div key={item.l} style={{ textAlign:'center', background:'#081622', borderRadius:6, padding:'6px 4px' }}>
-                      <div style={{ fontSize:9, color:'#5a6a7a', fontWeight:600, letterSpacing:'0.06em' }}>{item.l}</div>
-                      <div style={{ fontWeight:700, color:col, fontSize:14, marginTop:2 }}>{item.v}</div>
+                    <div key={item.l} style={{ textAlign:'center', background:'#081622', borderRadius:6, padding:'5px 2px' }}>
+                      <div style={{ fontSize:9, color:'#5a6a7a', fontWeight:600, letterSpacing:'0.04em' }}>{item.l}</div>
+                      <div style={{ fontWeight:700, color:item.c, fontSize:12, marginTop:2 }}>{item.v}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize:12, color:col, fontWeight:600 }}>{lbl}</div>
-                {r.analysis.segs.length === 1 && (
-                  <div style={{ fontSize:11, color:'#3d5068', marginTop:3 }}>📐 Straight-line grade · terrain profile unavailable</div>
-                )}
-                {r.analysis.segs.length > 1 && r.analysis.minGrade < 1.0 && r.analysis.minGrade >= 0 && (
-                  <div style={{ fontSize:11, color:'#f0883e', marginTop:3 }}>⚠ Worst segment {r.analysis.minGrade.toFixed(2)}% — vacuum or re-route needed</div>
+
+                {/* Status */}
+                <div style={{ fontSize:12, color:col, fontWeight:600, marginBottom: r.badSegs.length ? 4 : 0 }}>
+                  {statusIcon} {statusText}
+                </div>
+
+                {/* Problem segments */}
+                {r.badSegs.length > 0 && (
+                  <div style={{ marginTop:4 }}>
+                    {r.badSegs.map((s, bi) => (
+                      <div key={bi} style={{ fontSize:11, color:'#f0883e', display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
+                        <span style={{ background:'#f0883e22', borderRadius:4, padding:'1px 5px', fontWeight:700 }}>{s.grade.toFixed(2)}%</span>
+                        {s.from.label} → {s.to.label}
+                        <span style={{ color:'#5a6a7a' }}>({s.dist.toFixed(0)} ft, {Math.abs(s.drop).toFixed(1)} ft drop)</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             );
           })}
-          <div style={{ background:'#0f1720', borderRadius:8, padding:'10px 12px', fontSize:11, color:'#5a6a7a', lineHeight:1.9 }}>
-            <b style={{ color:'#8b949e' }}>Click a route to zoom · </b>
-            <span style={{ color:'#f85149' }}>━</span> &lt;0.5% &nbsp;
-            <span style={{ color:'#f0883e' }}>╌</span> 0.5–1% &nbsp;
-            <span style={{ color:'#3fb950' }}>━</span> 1–6% ✓ &nbsp;
-            <span style={{ color:'#f0883e' }}>━</span> &gt;6% steep
+
+          {/* Legend */}
+          <div style={{ background:'#081622', borderRadius:8, padding:'8px 12px', fontSize:11, color:'#5a6a7a', display:'flex', flexWrap:'wrap', gap:'8px 16px', alignItems:'center' }}>
+            <span style={{ color:'#8b949e', fontWeight:600 }}>Grade key:</span>
+            <span><span style={{ color:'#f85149', fontWeight:700 }}>━</span> &lt;0.5% too flat</span>
+            <span><span style={{ color:'#f0883e', fontWeight:700 }}>━</span> 0.5–1% marginal</span>
+            <span><span style={{ color:'#3fb950', fontWeight:700 }}>━</span> 1–6% ✓ ideal</span>
+            <span><span style={{ color:'#f0883e', fontWeight:700 }}>━</span> &gt;6% steep</span>
+            <span style={{ color:'#5a6a7a' }}>· Tap line to see details · Tap header to zoom</span>
           </div>
         </div>
       )}
