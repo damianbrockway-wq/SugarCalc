@@ -932,11 +932,12 @@ const POST_TASKS = [
   'Cover and protect evaporator for off-season',
 ];
 
-function tapsPer(dbh, vac) {
+function tapsPer(dbh) {
+  // Tap count is based on tree size only — vacuum increases yield per tap, not tap count
   if (dbh < 10) return 0;
-  if (dbh < 18) return vac === 'high' ? 2 : 1;
-  if (dbh < 25) return vac === 'high' ? 3 : 2;
-  return vac === 'high' ? 4 : 3;
+  if (dbh < 18) return 1;
+  if (dbh < 25) return 2;
+  return 3;
 }
 
 // ─── Shared UI pieces ─────────────────────────────────────────────────────────
@@ -1712,8 +1713,7 @@ function TappingTab({ sapBrix, trees, setTrees, units, lang='en' }) {
   const HEALTH_TAGS = (l) => [t(l,'goodProd'),t(l,'lowOutput'),t(l,'sapWatery'),t(l,'woundScar'),t(l,'skipYear'),t(l,'topProd')];
   const u    = units === 'L' ? 'L' : 'gal';
   const conv = v => units === 'L' ? (v*3.78541).toFixed(1) : v.toFixed(1);
-  const vKey = vacuum.includes('High') ? 'high' : 'gravity';
-  const tpt  = tapsPer(dbh, vKey);
+  const tpt  = tapsPer(dbh);
   const tot  = tpt * trees;
   const sap  = tot * 10;
   const sy   = syrupY(sap, sapBrix);
@@ -2034,6 +2034,11 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
   const [logs, setLogs] = useState(()=>ls.get('sg_logs2',{}));
   const [showF, setShowF] = useState(false);
   const [showC, setShowC] = useState(false);
+  const [autoCopy, setAutoCopy] = useState(()=>ls.get('sg_autocopy',{ro:false,evap:false}));
+  const setAutoCopyField = (field, val) => {
+    const next = {...autoCopy, [field]:val};
+    setAutoCopy(next); ls.set('sg_autocopy', next);
+  };
   const empty = { sapCollected:[], syrupMade:[], sapRO:[], sapEvap:[] };
   const slog  = logs[season] || empty;
 
@@ -2061,12 +2066,13 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
   const GRADE_LABELS = {'—':'—','Golden Delicate':t(lang,'gradeGolden'),'Amber Rich':t(lang,'gradeAmber'),'Dark Robust':t(lang,'gradeDark'),'Very Dark Strong':t(lang,'gradeVeryDark')};
   const GRADE_COLORS = { 'Golden Delicate':'#f5c842','Amber Rich':'#e0a44a','Dark Robust':'#c47a28','Very Dark Strong':'#8b4513' };
 
-  function LogSection({ label, logKey, color, icon, showGrade=false }) {
+  function LogSection({ label, logKey, color, icon, showGrade=false, showBrix=false, onAdd=null }) {
     const entries = slog[logKey]||[];
     const tot2    = entries.reduce((s,e)=>s+(parseFloat(e.val)||0),0);
-    const [val,  setVal]  = useState('');
-    const [note, setNote] = useState('');
-    const [grade,setGrade]= useState('—');
+    const [val,   setVal]   = useState('');
+    const [note,  setNote]  = useState('');
+    const [grade, setGrade] = useState('—');
+    const [brix,  setBrix]  = useState('');
     const [editDateId, setEditDateId] = useState(null);
     const Ic2 = I[icon];
     // Convert a locale date string to YYYY-MM-DD for <input type="date">
@@ -2078,8 +2084,17 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
     };
     const add = () => {
       if (!val) return;
-      updLog(logKey, [...entries, { id:Date.now(), date:new Date().toLocaleDateString(), val:parseFloat(val), note, grade: showGrade ? grade : undefined }]);
-      setVal(''); setNote(''); setGrade('—');
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString(),
+        val: parseFloat(val),
+        note,
+        grade: showGrade ? grade : undefined,
+        brix: showBrix && brix ? parseFloat(brix) : undefined,
+      };
+      updLog(logKey, [...entries, entry]);
+      if (onAdd) onAdd(parseFloat(val), entry.date, note);
+      setVal(''); setNote(''); setGrade('—'); setBrix('');
     };
     const updateDate = (i, isoVal) => {
       if (!isoVal) return;
@@ -2103,6 +2118,16 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
           <div style={{ flex:2 }}><input type="text" value={note} onChange={e=>setNote(e.target.value)} placeholder={t(lang,'note')} onKeyDown={e=>e.key==='Enter'&&add()} /></div>
           <button onClick={add} className="btn-icon" style={{ background:color }}><I.check size={18} color="#fff" /></button>
         </div>
+        {showBrix && (
+          <div style={{ marginTop:8, display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ flex:1 }}>
+              <div className="field-label">Sap °Brix <span style={{ color:'#3d5068', fontWeight:400 }}>(optional)</span></div>
+              <input type="number" value={brix} onChange={e=>setBrix(e.target.value)}
+                min={0} max={10} step={0.1} placeholder="e.g. 2.1"
+                style={{ width:'100%', boxSizing:'border-box' }} />
+            </div>
+          </div>
+        )}
         {showGrade && (
           <div style={{ marginTop:8 }}>
             <div className="field-label">{t(lang,'syrupBrix')} {t(lang,'optional')}</div>
@@ -2116,6 +2141,7 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
           <div key={e.id} className="log-entry">
             <div style={{ flex:1 }}>
               <span style={{ fontWeight:600 }}>{fmt(e.val,1)} {u}</span>
+              {e.brix != null && <span style={{ fontSize:11, fontWeight:600, color:'#2dd4a7', background:'#2dd4a722', borderRadius:6, padding:'1px 7px', marginLeft:6 }}>{e.brix.toFixed(1)}°Bx</span>}
               {e.grade && e.grade !== '—' && <span style={{ fontSize:11, fontWeight:700, color: GRADE_COLORS[e.grade]||'#e0a44a', background:(GRADE_COLORS[e.grade]||'#e0a44a')+'22', borderRadius:6, padding:'1px 7px', marginLeft:6 }}>{GRADE_LABELS[e.grade]||e.grade}</span>}
               {e.note && <span style={{ color:'#5a6a7a', fontSize:13 }}> · {e.note}</span>}
               {editDateId === e.id ? (
@@ -2185,10 +2211,37 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
         </button>
       </div>
 
-      <LogSection label={t(lang,'sapCollected')}      logKey="sapCollected" color="#2dd4a7" icon="package" />
-      <LogSection label={t(lang,'syrupMade')}         logKey="syrupMade"    color="#e0a44a" icon="droplet" showGrade={true} />
-      <LogSection label={t(lang,'sapRO')}       logKey="sapRO"        color="#58a6ff" icon="filter"  />
-      <LogSection label={t(lang,'sapEvap')}  logKey="sapEvap"      color="#f0883e" icon="flame"   />
+      {/* Auto-copy settings */}
+      <div className="card" style={{ marginBottom:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+          <I.zap size={15} color="#8b949e" />
+          <span style={{ fontWeight:600, fontSize:14 }}>Auto-copy Sap Collected</span>
+          <span style={{ fontSize:12, color:'#3d5068' }}>(off by default)</span>
+        </div>
+        <div style={{ fontSize:13, color:'#5a6a7a', marginBottom:10 }}>When you log sap collected, automatically add the same amount to:</div>
+        <div style={{ display:'flex', gap:16 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:14 }}>
+            <input type="checkbox" checked={autoCopy.ro} onChange={e=>setAutoCopyField('ro',e.target.checked)}
+              style={{ accentColor:'#58a6ff', width:16, height:16 }} />
+            <span style={{ color:'#58a6ff', fontWeight:600 }}>R/O</span>
+          </label>
+          <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:14 }}>
+            <input type="checkbox" checked={autoCopy.evap} onChange={e=>setAutoCopyField('evap',e.target.checked)}
+              style={{ accentColor:'#f0883e', width:16, height:16 }} />
+            <span style={{ color:'#f0883e', fontWeight:600 }}>Evaporator</span>
+          </label>
+        </div>
+      </div>
+
+      <LogSection label={t(lang,'sapCollected')} logKey="sapCollected" color="#2dd4a7" icon="package" showBrix={true}
+        onAdd={(amount, date, note) => {
+          if (autoCopy.ro)   updLog('sapRO',   [...(slog['sapRO']  ||[]), { id:Date.now(),    date, val:amount, note:'← auto from sap collected' }]);
+          if (autoCopy.evap) updLog('sapEvap', [...(slog['sapEvap']||[]), { id:Date.now()+1,  date, val:amount, note:'← auto from sap collected' }]);
+        }}
+      />
+      <LogSection label={t(lang,'syrupMade')}    logKey="syrupMade"    color="#e0a44a" icon="droplet" showGrade={true} />
+      <LogSection label={t(lang,'sapRO')}        logKey="sapRO"        color="#58a6ff" icon="filter"  />
+      <LogSection label={t(lang,'sapEvap')}      logKey="sapEvap"      color="#f0883e" icon="flame"   />
 
       <div style={{ textAlign:'center', marginBottom:14 }}>
         <button onClick={()=>{if(!window.confirm('Clear all data for '+season+'?'))return;const up={...logs};delete up[season];setLogs(up);ls.set('sg_logs2',up);}} style={{ background:'none', border:'none', color:'#3d5068', fontSize:14, textDecoration:'underline', cursor:'pointer' }}>
