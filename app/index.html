@@ -2516,14 +2516,69 @@ function SapImportModal({ season, onClose, onImport }) {
   const [csvText, setCsvText]   = React.useState('');
   const [preview, setPreview]   = React.useState(null);
   const [error, setError]       = React.useState('');
-  const [source, setSource]     = React.useState('sapspy');
+  const [source, setSource]     = React.useState('sugarcalc_pdf');
 
   const SOURCES = [
-    { id:'sapspy',   label:'SapSpy',          hint:'Exports via Settings → Data Export → CSV' },
-    { id:'saptrac',  label:'SapTrac',         hint:'File → Export → Sap Log CSV' },
-    { id:'generic',  label:'Generic CSV',     hint:'date, sap_gallons, syrup_gallons columns' },
-    { id:'manual',   label:'Paste Raw Data',  hint:'Comma-separated: date, sap, syrup' },
+    { id:'sugarcalc_pdf', label:'SugarCalc PDF', hint:'Drop in any SugarCalc Season Report PDF — SweetRun reads it automatically' },
+    { id:'sapspy',        label:'SapSpy CSV',     hint:'Exports via Settings → Data Export → CSV' },
+    { id:'saptrac',       label:'SapTrac CSV',    hint:'File → Export → Sap Log CSV' },
+    { id:'generic',       label:'Generic CSV',    hint:'date, sap_gallons, syrup_gallons columns' },
+    { id:'manual',        label:'Paste Raw Data', hint:'Comma-separated: date, sap, syrup' },
   ];
+
+  // ── PDF.js loader + SugarCalc PDF parser ─────────────────────────────────
+  const loadPdfJs = () => new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    s.onerror = () => reject(new Error('Failed to load PDF.js'));
+    document.head.appendChild(s);
+  });
+
+  const parseSugarCalcPDF = async (file) => {
+    setError(''); setPreview(null);
+    try {
+      await loadPdfJs();
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      let fullText = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page  = await pdf.getPage(p);
+        const items = (await page.getTextContent()).items;
+        fullText   += items.map(i => i.str).join(' ') + ' ';
+      }
+      const CAT_MAP = {
+        'Sap Collected':     'sap',
+        'Syrup Made':        'syrup',
+        'Sap Thru R/O':      'ro',
+        'Sap in Evaporator': 'evap',
+      };
+      const re = /(\d{1,2}\/\d{1,2}\/\d{4})\s+(Sap Collected|Syrup Made|Sap Thru R\/O|Sap in Evaporator)\s+([\d.]+)/g;
+      const rows = [];
+      let m;
+      while ((m = re.exec(fullText)) !== null) {
+        const val = parseFloat(m[3]);
+        if (val > 0) rows.push({ date: m[1], cat: CAT_MAP[m[2]], val });
+      }
+      if (rows.length === 0) {
+        setError('No log entries found. Make sure this is a SugarCalc Season Report PDF.');
+        return;
+      }
+      const years = rows.map(r => parseInt(r.date.split('/')[2])).filter(Boolean);
+      const detectedYear = years.length ? Math.max(...years) : new Date().getFullYear();
+      const totals = { sap:0, syrup:0, ro:0, evap:0 };
+      rows.forEach(r => { totals[r.cat] = (totals[r.cat]||0) + r.val; });
+      setPreview({ rows, totalSap:totals.sap, totalSyrup:totals.syrup,
+        totalRO:totals.ro, totalEvap:totals.evap, detectedYear, isPDF:true });
+    } catch(e) {
+      setError('Could not read PDF: ' + e.message);
+    }
+  };
 
   const parseCSV = (text, src) => {
     setError('');
@@ -2564,21 +2619,34 @@ function SapImportModal({ season, onClose, onImport }) {
 
   const doImport = () => {
     if (!preview) return;
+    const targetSeason = preview.isPDF ? (preview.detectedYear || season) : season;
     const existing = ls.get('sg_logs2', {});
-    const slog = existing[season] || { sapCollected:[], syrupMade:[], sapRO:[], sapEvap:[] };
+    const slog = existing[targetSeason] || { sapCollected:[], syrupMade:[], sapRO:[], sapEvap:[] };
 
-    // Append imported rows to existing log entries
-    const newSap   = preview.rows.filter(r=>r.sap>0).map(r=>({ val:r.sap,   note:`Imported (${source})`, date:r.date }));
-    const newSyrup = preview.rows.filter(r=>r.syrup>0).map(r=>({ val:r.syrup,note:`Imported (${source})`, date:r.date }));
-    const newRO    = preview.rows.filter(r=>r.ro>0).map(r=>({ val:r.ro,     note:`Imported (${source})`, date:r.date }));
+    let newSap=[], newSyrup=[], newRO=[], newEvap=[];
+    if (preview.isPDF) {
+      const label = 'SugarCalc PDF';
+      preview.rows.forEach(r => {
+        const entry = { val: r.val, note: `Imported (${label})`, date: r.date };
+        if      (r.cat === 'sap')   newSap.push(entry);
+        else if (r.cat === 'syrup') newSyrup.push(entry);
+        else if (r.cat === 'ro')    newRO.push(entry);
+        else if (r.cat === 'evap')  newEvap.push(entry);
+      });
+    } else {
+      newSap   = preview.rows.filter(r=>r.sap>0).map(r=>({ val:r.sap,   note:`Imported (${source})`, date:r.date }));
+      newSyrup = preview.rows.filter(r=>r.syrup>0).map(r=>({ val:r.syrup,note:`Imported (${source})`, date:r.date }));
+      newRO    = preview.rows.filter(r=>r.ro>0).map(r=>({ val:r.ro,     note:`Imported (${source})`, date:r.date }));
+    }
 
     const updated = {
       ...existing,
-      [season]: {
+      [targetSeason]: {
         ...slog,
         sapCollected: [...(slog.sapCollected||[]), ...newSap],
         syrupMade:    [...(slog.syrupMade||[]),    ...newSyrup],
         sapRO:        [...(slog.sapRO||[]),         ...newRO],
+        sapEvap:      [...(slog.sapEvap||[]),        ...newEvap],
       }
     };
     ls.set('sg_logs2', updated);
@@ -2589,6 +2657,10 @@ function SapImportModal({ season, onClose, onImport }) {
   const handleFile = e => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.name.toLowerCase().endsWith('.pdf') || source === 'sugarcalc_pdf') {
+      parseSugarCalcPDF(file);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => {
       setCsvText(ev.target.result);
@@ -2606,8 +2678,8 @@ function SapImportModal({ season, onClose, onImport }) {
         {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <div>
-            <div style={{fontSize:18,fontWeight:700,color:'#fff'}}>📡 Import Sap Monitor Data</div>
-            <div style={{fontSize:12,color:'#5a6a7a',marginTop:2}}>SapSpy · SapTrac · Generic CSV</div>
+            <div style={{fontSize:18,fontWeight:700,color:'#fff'}}>📡 Import Season Data</div>
+            <div style={{fontSize:12,color:'#5a6a7a',marginTop:2}}>SugarCalc PDF · SapSpy · SapTrac · CSV</div>
           </div>
           <button onClick={onClose} style={{background:'none',border:'none',color:'#5a6a7a',
             fontSize:22,cursor:'pointer',padding:'4px 8px'}}>✕</button>
@@ -2637,7 +2709,7 @@ function SapImportModal({ season, onClose, onImport }) {
         <div style={{border:'2px dashed #21262d',borderRadius:12,padding:20,textAlign:'center',
           marginBottom:16,cursor:'pointer',position:'relative'}}
           onClick={()=>document.getElementById('csv-file-input').click()}>
-          <input id="csv-file-input" type="file" accept=".csv,.txt" onChange={handleFile}
+          <input id="csv-file-input" type="file" accept=".csv,.txt,.pdf" onChange={handleFile}
             style={{position:'absolute',inset:0,opacity:0,cursor:'pointer'}} />
           <div style={{fontSize:28,marginBottom:8}}>📂</div>
           <div style={{fontSize:14,fontWeight:600,color:'#e6edf3'}}>Tap to select CSV file</div>
@@ -2667,34 +2739,51 @@ function SapImportModal({ season, onClose, onImport }) {
         {preview && !error && (
           <div style={{background:'#0d1117',border:'1px solid #21262d',borderRadius:12,
             padding:16,marginBottom:16}}>
+            {preview.isPDF && (
+              <div style={{background:'rgba(63,185,80,0.08)',border:'1px solid rgba(63,185,80,0.25)',
+                borderRadius:8,padding:'8px 12px',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:14}}>📄</span>
+                <div style={{fontSize:12,color:'#3fb950',fontWeight:600}}>
+                  SugarCalc PDF · {preview.rows.length} entries · Season {preview.detectedYear}
+                </div>
+              </div>
+            )}
             <div style={{fontSize:13,fontWeight:700,color:'#3fb950',marginBottom:12}}>
               ✅ Ready to import — {preview.rows.length} rows detected
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:8,marginBottom:12}}>
               {[
-                {label:'Sap Collected', val:preview.totalSap.toFixed(0)+' gal', color:'#58a6ff'},
-                {label:'Syrup Made',    val:preview.totalSyrup.toFixed(1)+' gal',color:'#3fb950'},
-                {label:'RO Processed', val:preview.totalRO>0?preview.totalRO.toFixed(0)+' gal':'—', color:'#a78bfa'},
+                {label:'Sap',   val:preview.totalSap   > 0 ? preview.totalSap.toFixed(0)+' gal'   : '—', color:'#58a6ff'},
+                {label:'Syrup', val:preview.totalSyrup > 0 ? preview.totalSyrup.toFixed(1)+' gal' : '—', color:'#3fb950'},
+                {label:'RO',    val:preview.totalRO    > 0 ? preview.totalRO.toFixed(0)+' gal'    : '—', color:'#a78bfa'},
+                {label:'Evap',  val:(preview.totalEvap||0) > 0 ? (preview.totalEvap||0).toFixed(0)+' gal' : '—', color:'#f59e0b'},
               ].map(x=>(
-                <div key={x.label} style={{textAlign:'center',background:'#161b22',borderRadius:8,padding:12}}>
-                  <div style={{fontSize:18,fontWeight:700,color:x.color}}>{x.val}</div>
-                  <div style={{fontSize:10,color:'#5a6a7a',marginTop:3}}>{x.label}</div>
+                <div key={x.label} style={{textAlign:'center',background:'#161b22',borderRadius:8,padding:'10px 6px'}}>
+                  <div style={{fontSize:16,fontWeight:700,color:x.color}}>{x.val}</div>
+                  <div style={{fontSize:10,color:'#5a6a7a',marginTop:2}}>{x.label}</div>
                 </div>
               ))}
             </div>
-            <div style={{maxHeight:140,overflowY:'auto',borderRadius:8,border:'1px solid #21262d'}}>
-              {preview.rows.slice(0,5).map((r,i)=>(
+            <div style={{maxHeight:160,overflowY:'auto',borderRadius:8,border:'1px solid #21262d'}}>
+              {(preview.isPDF ? preview.rows.slice(0,8) : preview.rows.slice(0,5)).map((r,i)=>(
                 <div key={i} style={{display:'flex',justifyContent:'space-between',
                   padding:'7px 12px',borderBottom:'1px solid #161b22',fontSize:12,color:'#8b949e'}}>
                   <span>{r.date}</span>
-                  {r.sap>0 && <span style={{color:'#58a6ff'}}>{r.sap} gal sap</span>}
-                  {r.syrup>0 && <span style={{color:'#3fb950'}}>{r.syrup} gal syrup</span>}
-                  {r.ro>0 && <span style={{color:'#a78bfa'}}>{r.ro} gal RO</span>}
+                  {preview.isPDF
+                    ? <span style={{color: r.cat==='sap'?'#58a6ff':r.cat==='syrup'?'#3fb950':r.cat==='ro'?'#a78bfa':'#f59e0b'}}>
+                        {r.val} gal {r.cat==='sap'?'sap':r.cat==='syrup'?'syrup':r.cat==='ro'?'RO':'evap'}
+                      </span>
+                    : <>
+                        {r.sap>0   && <span style={{color:'#58a6ff'}}>{r.sap} gal sap</span>}
+                        {r.syrup>0 && <span style={{color:'#3fb950'}}>{r.syrup} gal syrup</span>}
+                        {r.ro>0    && <span style={{color:'#a78bfa'}}>{r.ro} gal RO</span>}
+                      </>
+                  }
                 </div>
               ))}
-              {preview.rows.length > 5 && (
+              {preview.rows.length > (preview.isPDF ? 8 : 5) && (
                 <div style={{padding:'6px 12px',fontSize:11,color:'#3d5068',textAlign:'center'}}>
-                  + {preview.rows.length - 5} more rows…
+                  + {preview.rows.length - (preview.isPDF ? 8 : 5)} more entries…
                 </div>
               )}
             </div>
@@ -2713,7 +2802,7 @@ function SapImportModal({ season, onClose, onImport }) {
               background: preview && !error ? '#238636' : '#1c2128',
               color: preview && !error ? '#fff' : '#484f58',
               fontSize:15,cursor: preview && !error ? 'pointer' : 'default',fontWeight:700}}>
-            {preview && !error ? `Import ${preview.rows.length} rows into ${season}` : 'Import Data'}
+            {preview && !error ? `Import ${preview.rows.length} entries into ${preview.isPDF && preview.detectedYear ? preview.detectedYear : season}` : 'Import Data'}
           </button>
         </div>
       </div>
@@ -2904,7 +2993,7 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
         <div style={{ flex:1 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#3fb950', letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>Import Your Data</div>
           <div style={{ fontSize:14, fontWeight:600, color:'#c9d1d9', marginBottom:3 }}>SapSpy · SapTrac · Any CSV</div>
-          <div style={{ fontSize:12, color:'#5a6a7a', lineHeight:1.5 }}>Already tracking sap in another app? Import your CSV and SweetRun does the rest.</div>
+          <div style={{ fontSize:12, color:'#5a6a7a', lineHeight:1.5 }}>Already tracking in SugarCalc, SapSpy, or SapTrac? Import a PDF or CSV and SweetRun does the rest.</div>
         </div>
         <button onClick={()=>setShowImport(true)}
           style={{ background:'#3fb950', border:'none', borderRadius:10, padding:'11px 18px', fontWeight:700, fontSize:13, color:'#07090f', cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
