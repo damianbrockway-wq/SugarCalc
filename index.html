@@ -192,6 +192,36 @@
       text-transform: uppercase; color: #5a6a7a;
       display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
     }
+    /* ── Design tokens ── */
+    /* Canonical muted text: use --c-muted (dim labels) or --c-hint (very dim) */
+    :root {
+      --c-muted:  #5a6a7a;   /* secondary labels, field hints  */
+      --c-hint:   #3d5068;   /* tertiary / placeholder text    */
+      --c-subtle: #8b949e;   /* medium-weight secondary values */
+      --c-border: #1e2d3d;
+      --c-surface:#0f1720;
+    }
+    /* Disabled state */
+    button:disabled { cursor: not-allowed; opacity: 0.4; }
+    /* Consistent empty state */
+    .empty-state {
+      text-align: center; padding: 28px 20px;
+      color: var(--c-hint); font-size: 13px; line-height: 1.6;
+    }
+    .empty-state .empty-icon { font-size: 30px; margin-bottom: 8px; }
+    .empty-state .empty-title { font-size: 14px; font-weight: 700; color: var(--c-muted); margin-bottom: 4px; }
+    /* Consistent inner row (replaces info-row variants) */
+    .data-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: var(--c-surface);
+      border-radius: 10px; margin-bottom: 6px;
+      border: 1px solid #1a2840;
+      font-size: 13px;
+    }
+    .data-row .data-label { color: var(--c-muted); }
+    .data-row .data-value { font-weight: 600; color: #c9d1d9; }
+    /* tip-item text standardised */
+    .tip-item { color: #8b949e; }
     .divider { height: 1px; background: #131e2c; margin: 8px 0 14px; }
     .weather-day {
       display: flex; align-items: center; justify-content: space-between;
@@ -223,11 +253,11 @@
       display: flex; justify-content: space-between; align-items: flex-start;
     }
     .delete-btn {
-      background: transparent; border: none;
-      color: #2d3f52; display: flex; align-items: center; padding: 5px;
-      transition: color 0.15s; border-radius: 6px;
+      background: rgba(248,81,73,0.08); border: none;
+      color: #c0444a; display: flex; align-items: center; padding: 5px;
+      transition: all 0.15s; border-radius: 6px;
     }
-    .delete-btn:hover { color: #f85149; background: rgba(248,81,73,0.1); }
+    .delete-btn:hover { color: #fff; background: rgba(248,81,73,0.7); }
     .onboarding-card {
       background: linear-gradient(160deg, #121c28 0%, #0d1520 100%);
       border: 1px solid #1a2840;
@@ -1059,7 +1089,9 @@ const SPOUTS = [
   { label: '7/16" (Standard)',     bit: '7/16"', depth: '1.5–2 in', note: 'Traditional size' },
   { label: '19/64" (Drops)',       bit: '19/64"',depth: '1.5–2 in', note: 'For drop lines' },
 ];
-const PLATE_CUPS = { '7" plates': 3.25, '4" plates': 1.5, '5" plates': 2.0 };
+// DE per plate scaled from Smoky Lake baseline (3.25 cups per 7" window plate)
+// Area-proportional: 10" = 3.25×(10²/7²)≈6.6, 12" = 3.25×(12²/7²)≈9.5
+const PLATE_CUPS = { '7" plates': 3.25, '10" plates': 6.6, '12" plates': 9.5 };
 const ALT_REF = [
   { alt:'0 ft',     bp:212.0, fin:219.1 },
   { alt:'500 ft',   bp:211.1, fin:218.2 },
@@ -2018,6 +2050,8 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
   const [plates,  setPlates]  = useState(9);
   const [psKey,   setPsKey]   = useState('7" plates');
   const [gal2f,   setGal2f]   = useState(10);
+  const [szn,     setSzn]     = useState('early'); // 'early' | 'late'
+  const [deMode,  setDeMode]  = useState('precoat'); // 'precoat' | 'straight'
 
   const finT  = finTemp(waterBP);
   const corr  = denCorr(syTemp);
@@ -2026,9 +2060,22 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
   const tooLt = corrB < 66;
   const sColor= inR ? '#3fb950' : '#f0883e';
   const sText = inR ? t(lang,'perfectDensity') : tooLt ? t(lang,'tooLight') : t(lang,'tooDense');
-  const cpP   = PLATE_CUPS[psKey] || 3.25;
-  const cups  = plates * cpP;
-  const lbs   = cups * 0.349;
+  const cpP          = PLATE_CUPS[psKey] || 3.25;
+  const cupsPerPlate = plates * cpP;
+  // Auto-recommend method by batch size
+  const recMode = gal2f > 25 ? 'precoat' : 'straight';
+  // Per-gallon rates:
+  //   Precoat cross-check:  early 0.2 cups/gal, late 0.5 cups/gal
+  //   Straight mix:         early 0.5 cups/gal, late 0.75 cups/gal
+  const galRate = szn === 'late'
+    ? (deMode === 'straight' ? 0.75 : 0.5)
+    : (deMode === 'straight' ? 0.5  : 0.2);
+  const cupsPerGal = gal2f > 0 ? gal2f * galRate : 0;
+  const cups = deMode === 'straight'
+    ? (gal2f > 0 ? cupsPerGal : 0)
+    : (gal2f > 0 ? Math.max(cupsPerPlate, cupsPerGal) : cupsPerPlate);
+  // Filter-grade DE bulk density ≈ 10-12 lbs/ft³ = ~0.1 lbs/cup (Dicalite, Celite grades)
+  const lbs   = cups * 0.1;
   const oz    = lbs * 16;
 
   return (
@@ -2090,29 +2137,185 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
       <div className="card">
         <div className="card-title">
           <CardIcon bg="#1c2128" icon="layers" />
-          <div><div>{t(lang,'filterPress')}</div><div style={{ fontSize:12, color:'#5a6a7a', fontWeight:400 }}>Based on Smokey Lake</div></div>
-        </div>
-        <div className="section-header">{t(lang,'plateSetup')}</div>
-        <div className="two-col" style={{ marginBottom:10 }}>
-          <div><div className="field-label">{t(lang,'numPlates')}</div><NumInput value={plates} onChange={setPlates} min={1} max={50} step={1} /></div>
-          <div><div className="field-label">{t(lang,'plateSize')}</div><select value={psKey} onChange={e=>setPsKey(e.target.value)}>{Object.keys(PLATE_CUPS).map(k=><option key={k}>{k}</option>)}</select></div>
-        </div>
-        <div className="section-header">{t(lang,'syrupVolOpt')}</div>
-        <div className="field-label">{t(lang,'galsToFilter')}</div>
-        <NumInput value={gal2f} onChange={setGal2f} min={0} max={1000} step={1} />
-        <div className="result-box" style={{ marginTop:12 }}>
-          <div style={{ fontSize:12, color:'#5a6a7a', marginBottom:8 }}>{t(lang,'deNeeded')} — {plates} × {psKey}</div>
-          <div className="three-col">
-            <div style={{ textAlign:'center' }}><div style={{ fontSize:11, color:'#5a6a7a' }}>CUPS</div><div style={{ fontWeight:700, fontSize:22 }}>{fmt(cups,1)}</div></div>
-            <div style={{ textAlign:'center' }}><div style={{ fontSize:11, color:'#5a6a7a' }}>LBS</div><div style={{ fontWeight:700, fontSize:22 }}>{fmt(lbs,2)}</div></div>
-            <div style={{ textAlign:'center' }}><div style={{ fontSize:11, color:'#5a6a7a' }}>OZ</div><div style={{ fontWeight:700, fontSize:22 }}>{fmt(oz,1)}</div></div>
+          <div>
+            <div>{t(lang,'filterPress')}</div>
+            <div style={{ fontSize:12, color:'#5a6a7a', fontWeight:400 }}>Step-by-step DE Calculator</div>
           </div>
-          <div className="divider" />
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:14 }}><span style={{ color:'#5a6a7a' }}>{t(lang,'perPlate')} ({psKey.replace(' plates','"')})</span><strong>{cpP} cups</strong></div>
-          {gal2f > 0 && <div style={{ display:'flex', justifyContent:'space-between', fontSize:14, marginTop:4 }}><span style={{ color:'#5a6a7a' }}>{t(lang,'perGallon')}</span><strong>{fmt(cups/gal2f,2)} cups</strong></div>}
-          <div style={{ color:'#3d5068', fontSize:12, marginTop:6 }}>Scaled from Smokey Lake: 3¼ cups per 7" plate</div>
         </div>
-        {['Heat syrup to 185–190°F before filtering','Pre-coat plates thoroughly before body feed','Stop if pressure exceeds 40 PSI (clogged)','Use food-grade DE only','Rinse press immediately after use'].map((t,i)=><TipItem key={i}>{t}</TipItem>)}
+
+        {/* ── STEP 1: Gallons ── */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+          <div style={{ width:22, height:22, borderRadius:'50%', background:'#2dd4a7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#061a14', flexShrink:0 }}>1</div>
+          <div style={{ fontSize:13, fontWeight:700, color:'#e6edf3' }}>How many gallons are you filtering right now?</div>
+        </div>
+        <NumInput value={gal2f} onChange={setGal2f} min={0} max={1000} step={1} />
+        <div style={{ fontSize:12, color:'#3d5068', marginTop:4, marginBottom:14 }}>Enter the gallons sitting in your finishing pan ready to press</div>
+
+        {/* ── Auto recommendation banner ── */}
+        {gal2f > 0 && (() => {
+          const isSmall = gal2f <= 10;
+          const isMed   = gal2f > 10 && gal2f <= 25;
+          const isLarge = gal2f > 25;
+          const rColor  = isLarge ? '#58a6ff' : '#2dd4a7';
+          const rBg     = isLarge ? 'rgba(88,166,255,0.08)' : 'rgba(45,212,167,0.08)';
+          const rBorder = isLarge ? 'rgba(88,166,255,0.22)' : 'rgba(45,212,167,0.22)';
+          const rIcon   = isLarge ? '🔵' : '🟢';
+          const rTitle  = isSmall ? 'Small batch — use Straight Mix (no precharge needed)'
+                        : isMed   ? 'Medium batch — Straight Mix works great; Precharge optional'
+                        :           'Large batch — Precharge recommended for best results';
+          const rDesc   = isSmall ? 'Under 10 gallons: skip the precharge step entirely. Just stir DE into your hot syrup and press. Saves time and works perfectly at this volume.'
+                        : isMed   ? '10–25 gallons: straight mix still works well and is simpler. Switch to Precharge if you want a cleaner first pour or you\'re running multiple batches.'
+                        :           'Over 25 gallons: precharging the plates first pays off. You\'ll get better efficiency, consistent flow, and cleaner syrup from the very first drop.';
+          return (
+            <div style={{ background:rBg, border:`1px solid ${rBorder}`, borderRadius:12, padding:'12px 14px', marginBottom:16 }}>
+              <div style={{ fontWeight:700, color:rColor, fontSize:13, marginBottom:4 }}>{rIcon} {rTitle}</div>
+              <div style={{ fontSize:12, color:'#8b949e', lineHeight:1.5 }}>{rDesc}</div>
+            </div>
+          );
+        })()}
+
+        {/* ── STEP 2: Method ── */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+          <div style={{ width:22, height:22, borderRadius:'50%', background:'#2dd4a7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#061a14', flexShrink:0 }}>2</div>
+          <div style={{ fontSize:13, fontWeight:700, color:'#e6edf3' }}>Choose your method</div>
+        </div>
+        <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          {[
+            { id:'straight', label:'Straight Mix',    sub:'Stir DE into the syrup and press. Easiest — no precharge.',       color:'#2dd4a7', bg:'rgba(45,212,167,0.08)'  },
+            { id:'precoat',  label:'Precharge First', sub:'Coat the plates with DE-water first, then run your syrup through.', color:'#58a6ff', bg:'rgba(88,166,255,0.08)' },
+          ].map(m => {
+            const isRec = m.id === recMode;
+            const isSel = m.id === deMode;
+            return (
+              <button key={m.id} onClick={() => setDeMode(m.id)} style={{
+                flex:1, padding:'10px 10px 8px', borderRadius:12,
+                border:`1px solid ${isSel ? m.color : '#1e2d3d'}`,
+                background: isSel ? m.bg : 'transparent',
+                cursor:'pointer', textAlign:'left', transition:'all 0.15s', position:'relative'
+              }}>
+                {isRec && <div style={{ position:'absolute', top:6, right:8, fontSize:9, fontWeight:800, color:m.color, letterSpacing:'0.06em', opacity:0.8 }}>★ RECOMMENDED</div>}
+                <div style={{ fontSize:13, fontWeight:700, color: isSel ? m.color : '#8b949e', marginBottom:3, paddingRight:isRec?52:0 }}>{m.label}</div>
+                <div style={{ fontSize:11, color:'#3d5068', lineHeight:1.4 }}>{m.sub}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── STEP 3: Syrup color ── */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+          <div style={{ width:22, height:22, borderRadius:'50%', background:'#2dd4a7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#061a14', flexShrink:0 }}>3</div>
+          <div style={{ fontSize:13, fontWeight:700, color:'#e6edf3' }}>What does your syrup look like?</div>
+        </div>
+        <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          {[
+            { id:'early', label:'Light / Amber',   sub:'Golden or Amber Rich — earlier in the season', color:'#f5c842', bg:'rgba(245,200,66,0.08)',  border:'rgba(245,200,66,0.22)' },
+            { id:'late',  label:'Dark / Very Dark', sub:'Dark Robust or Very Dark — later in the season', color:'#c47a28', bg:'rgba(196,122,40,0.08)',  border:'rgba(196,122,40,0.22)' },
+          ].map(s => (
+            <button key={s.id} onClick={() => setSzn(s.id)} style={{
+              flex:1, padding:'10px 10px', borderRadius:12,
+              border:`1px solid ${szn===s.id ? s.border : '#1e2d3d'}`,
+              background: szn===s.id ? s.bg : 'transparent',
+              cursor:'pointer', textAlign:'left', transition:'all 0.15s'
+            }}>
+              <div style={{ fontSize:13, fontWeight:700, color: szn===s.id ? s.color : '#8b949e', marginBottom:3 }}>{s.label}</div>
+              <div style={{ fontSize:11, color:'#3d5068', lineHeight:1.4 }}>{s.sub}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* ── STEP 4: Press setup (precharge only) ── */}
+        {deMode === 'precoat' && (<>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+            <div style={{ width:22, height:22, borderRadius:'50%', background:'#2dd4a7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#061a14', flexShrink:0 }}>4</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#e6edf3' }}>Your press setup</div>
+          </div>
+          <div className="two-col" style={{ marginBottom:16 }}>
+            <div><div className="field-label">Number of plates</div><NumInput value={plates} onChange={setPlates} min={1} max={50} step={1} /></div>
+            <div><div className="field-label">Plate size</div><select value={psKey} onChange={e=>setPsKey(e.target.value)} style={{ width:'100%', padding:'9px 10px', borderRadius:10, background:'#0d1520', border:'1px solid #1e2d3d', color:'#e6edf3', fontSize:14 }}>{Object.keys(PLATE_CUPS).map(k=><option key={k}>{k}</option>)}</select></div>
+          </div>
+        </>)}
+
+        {/* ── BIG RESULT ── */}
+        {gal2f > 0 ? (
+          <div style={{ background:'linear-gradient(135deg,#081f17 0%,#061512 100%)', border:'1px solid rgba(45,212,167,0.3)', borderRadius:16, padding:'20px 16px', textAlign:'center', marginBottom:16 }}>
+            <div style={{ fontSize:11, letterSpacing:'0.12em', color:'#2dd4a7', fontWeight:700, marginBottom:6 }}>YOU NEED</div>
+            <div style={{ fontSize:52, fontWeight:800, color:'#2dd4a7', lineHeight:1, marginBottom:4 }}>{fmt(cups,1)}</div>
+            <div style={{ fontSize:16, color:'#2dd4a7', opacity:0.7, marginBottom:12 }}>cups of DE</div>
+            <div style={{ display:'flex', gap:0, justifyContent:'center' }}>
+              <div style={{ padding:'8px 20px', borderRight:'1px solid #131e2c' }}>
+                <div style={{ fontSize:10, color:'#3d5068', letterSpacing:'0.08em', marginBottom:2 }}>TABLESPOONS</div>
+                <div style={{ fontWeight:700, color:'#8b949e', fontSize:16 }}>{Math.round(cups*16)}</div>
+              </div>
+              <div style={{ padding:'8px 20px', borderRight:'1px solid #131e2c' }}>
+                <div style={{ fontSize:10, color:'#3d5068', letterSpacing:'0.08em', marginBottom:2 }}>OUNCES</div>
+                <div style={{ fontWeight:700, color:'#8b949e', fontSize:16 }}>{fmt(oz,1)}</div>
+              </div>
+              <div style={{ padding:'8px 20px' }}>
+                <div style={{ fontSize:10, color:'#3d5068', letterSpacing:'0.08em', marginBottom:2 }}>POUNDS</div>
+                <div style={{ fontWeight:700, color:'#8b949e', fontSize:16 }}>{fmt(lbs,2)}</div>
+              </div>
+            </div>
+            {szn === 'late' && (
+              <div style={{ marginTop:10, fontSize:12, color:'#e0a44a', background:'rgba(224,164,74,0.1)', borderRadius:8, padding:'5px 12px', display:'inline-block' }}>
+                ⚠ Late-season rate applied — dark syrup needs more DE
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ background:'#0d1520', borderRadius:16, padding:'20px 16px', textAlign:'center', marginBottom:16, border:'1px solid #1e2d3d' }}>
+            <div style={{ fontSize:14, color:'#3d5068' }}>Enter your gallons above to get your DE amount</div>
+          </div>
+        )}
+
+        {/* ── HOW TO DO IT ── */}
+        <div className="section-header" style={{ marginBottom:10 }}>
+          {deMode === 'straight' ? 'HOW TO DO IT — STRAIGHT MIX' : 'HOW TO DO IT — PRECHARGE METHOD'}
+        </div>
+        {deMode === 'straight' && (
+          <div style={{ background:'rgba(88,166,255,0.08)', border:'1px solid rgba(88,166,255,0.22)', borderRadius:12, padding:'12px 14px', marginBottom:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#58a6ff', marginBottom:4 }}>👀 Heads up before you start</div>
+            <div style={{ fontSize:12, color:'#8b949e', lineHeight:1.6 }}>
+              The first syrup out of the press <strong style={{ color:'#e6edf3' }}>will be cloudy</strong> — this is completely normal. The DE is still building up a cake on the plates. Have a small pot or cup ready at the spout and keep running it back into your pot until the syrup comes out clear. On a small batch like yours this might take {gal2f <= 5 ? 'just a cup or two' : 'a quart or so'} — don't collect anything until it's running clear.
+            </div>
+          </div>
+        )}
+        {(deMode === 'straight' ? [
+          { step:`Heat your syrup to 185–190°F`, detail:'It needs to be hot so the DE mixes in and doesn\'t clump. Don\'t skip this — cold syrup won\'t filter well.' },
+          { step:`Measure out ${fmt(cups,1)} cups of food-grade DE`, detail:'Use filter-press grade DE only (like Dicalite or Celite). Pool filter DE is not food safe — don\'t use it.' },
+          { step:'Stir the DE into the hot syrup until fully dissolved', detail:'Whisk or stir thoroughly for a minute or two. You want it evenly suspended, no white clumps sitting on the bottom.' },
+          { step:'Load the press slowly and start filtering', detail:'The first bit that comes out will be cloudy — that\'s normal. The DE is still building up a cake on the plates.' },
+          { step:'Catch the cloudy first pour and return it to the pot', detail:'Keep a small cup or pot at the spout. Once the syrup runs clear and golden, switch over to your collection vessel.' },
+          { step:'Watch your pressure gauge', detail:'Pressure will climb slowly as the cake builds — that\'s normal. Stop if it hits 40 PSI. That means the plates are full and it\'s time to clean and repack.' },
+        ] : [
+          { step:'Fill the press with 1–2 gallons of hot water (150–170°F)', detail:'This is your precharge charge — it\'s what carries the DE onto the plates. Don\'t use syrup for this step.' },
+          { step:`Add ${fmt(cupsPerPlate,1)} cups of DE to the hot water and stir`, detail:`This is the pre-coat amount for your ${plates}-plate press. Stir it into the hot water until fully mixed.` },
+          { step:'Circulate the DE-water mix through the press', detail:'Run it through and back into your bucket several times until the water coming out runs clear. The plates are now coated.' },
+          { step:'Drain the water from the press', detail:'Open the drain valve and let the precharge water out. Your plates now have a thin DE cake on them — don\'t disturb them.' },
+          { step:'Heat your syrup to 185–190°F and start filtering', detail:'Syrup should come out clear right from the start since the plates are already coated. Collect from the first drop.' },
+          { step:'Watch your pressure gauge', detail:'Stop at 40 PSI — plates are full. Rinse the press and repeat the precharge if you have more syrup to run.' },
+        ]).map((item,i) => (
+          <div key={i} style={{ display:'flex', gap:12, marginBottom:12, alignItems:'flex-start' }}>
+            <div style={{ width:24, height:24, borderRadius:'50%', background:'#131e2c', border:'1px solid #1e2d3d', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#5a6a7a', flexShrink:0, marginTop:1 }}>{i+1}</div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#e6edf3', marginBottom:3 }}>{item.step}</div>
+              <div style={{ fontSize:12, color:'#5a6a7a', lineHeight:1.5 }}>{item.detail}</div>
+            </div>
+          </div>
+        ))}
+
+        {/* ── TROUBLESHOOTING ── */}
+        <div className="section-header" style={{ marginBottom:10, marginTop:6 }}>IF SOMETHING GOES WRONG</div>
+        {[
+          { prob:'Syrup is still cloudy after a few cups', fix:'The DE cake hasn\'t formed yet — keep returning the cloudy syrup to the pot. If it stays cloudy for more than a quart, add another ¼ cup of DE to the pot and stir.' },
+          { prob:'Pressure gauge climbing too fast', fix:'The plates are loading up quickly — this is common with dark or late-season syrup. Stop at 40 PSI, rinse the press, and add 25–50% more DE to your next batch.' },
+          { prob:'Nothing is coming out / flow stopped', fix:'Check that your valves are open. If pressure is at or above 40 PSI, your plates are full — stop, disassemble, rinse, and reload.' },
+          { prob:'Syrup tastes or smells like DE', fix:'You\'ve used way too much. This is rare with filter-press grade DE. Reduce by half next time. Make sure you\'re using food-grade filter DE, not pool filter DE.' },
+        ].map((item,i) => (
+          <div key={i} style={{ background:'#0d1520', borderRadius:10, padding:'10px 14px', marginBottom:8, border:'1px solid #1a2840' }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#f0883e', marginBottom:3 }}>⚡ {item.prob}</div>
+            <div style={{ fontSize:12, color:'#5a6a7a', lineHeight:1.5 }}>{item.fix}</div>
+          </div>
+        ))}
       </div>
 
       <div className="card">
@@ -2614,10 +2817,10 @@ function SapImportModal({ season, onClose, onImport }) {
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split(',').map(c => c.trim().replace(/['"]/g,''));
-      const sap   = sapIdx   >= 0 ? parseFloat(cols[sapIdx])   || 0 : 0;
-      const syrup = syrupIdx >= 0 ? parseFloat(cols[syrupIdx]) || 0 : 0;
-      const ro    = roIdx    >= 0 ? parseFloat(cols[roIdx])    || 0 : 0;
-      const date  = dateIdx  >= 0 ? cols[dateIdx] : `Day ${i}`;
+      const sap   = sapIdx   >= 0 && sapIdx   < cols.length ? parseFloat(cols[sapIdx])   || 0 : 0;
+      const syrup = syrupIdx >= 0 && syrupIdx < cols.length ? parseFloat(cols[syrupIdx]) || 0 : 0;
+      const ro    = roIdx    >= 0 && roIdx    < cols.length ? parseFloat(cols[roIdx])    || 0 : 0;
+      const date  = dateIdx  >= 0 && dateIdx  < cols.length ? cols[dateIdx] : `Day ${i}`;
       if (sap > 0 || syrup > 0 || ro > 0) rows.push({ date, sap, syrup, ro });
     }
 
@@ -3561,8 +3764,8 @@ function SeasonTab({ season, lang='en' }) {
     setBrixIn(''); setNoteIn('');
   };
   const bVals = brixLog.map(e => e.brix);
-  const bMin  = Math.min(...(bVals.length ? bVals : [0]), 0.5);
-  const bMax  = Math.max(...(bVals.length ? bVals : [4]), 4);
+  const bMin  = bVals.length ? Math.min(...bVals) : 0;
+  const bMax  = bVals.length ? Math.max(...bVals) : 4;
   const bRange = bMax - bMin || 1;
   const SW = 320, SH = 80;
 
@@ -4190,7 +4393,7 @@ function _sbParseKML(text) {
     const name = pm.querySelector('name')?.textContent || 'Property';
     const polyTxt = pm.querySelector('Polygon coordinates')?.textContent || pm.querySelector('outerBoundaryIs coordinates')?.textContent;
     const lineTxt = pm.querySelector('LineString coordinates')?.textContent;
-    const parsePts = t => t.trim().split(/\s+/).map(c => { const [lng,lat] = c.split(',').map(Number); return [lng,lat]; }).filter(c => !isNaN(c[0]));
+    const parsePts = t => (t || '').trim().split(/\s+/).filter(Boolean).map(c => { const [lng,lat] = c.split(',').map(Number); return [lng,lat]; }).filter(c => !isNaN(c[0]));
     if (polyTxt) { const c = parsePts(polyTxt); if (c.length > 2) features.push({ type:'Feature', properties:{name}, geometry:{ type:'Polygon', coordinates:[c] } }); }
     else if (lineTxt) { const c = parsePts(lineTxt); if (c.length > 1) features.push({ type:'Feature', properties:{name}, geometry:{ type:'LineString', coordinates:c } }); }
   });
@@ -4727,22 +4930,22 @@ function LinesTab({ lang='en' }) {
           {/* GPS drop */}
           <button onClick={markGPS} disabled={gpsLoading}
             style={{ background:gpsLoading?'rgba(255,255,255,0.05)':'rgba(88,166,255,0.18)', border:'none', borderRadius:999,
-              padding:'5px 12px', fontSize:11, fontWeight:700, color:gpsLoading?'#4a5a6a':'#58a6ff',
-              cursor:'pointer', whiteSpace:'nowrap', opacity:gpsLoading?0.5:1 }}>
+              padding:'5px 10px', fontSize:11, fontWeight:700, color:gpsLoading?'#4a5a6a':'#58a6ff',
+              whiteSpace:'nowrap', opacity:gpsLoading?0.5:1 }}>
             {gpsLoading ? '…' : '⊕ GPS'}
           </button>
 
           {/* Track toggle */}
           <button onClick={gpsTracking ? stopTracking : startTracking}
             style={{ background:gpsTracking?'rgba(239,68,68,0.18)':'rgba(255,255,255,0.06)', border:'none', borderRadius:999,
-              padding:'5px 12px', fontSize:11, fontWeight:700, color:gpsTracking?'#f87171':'#4a5a6a', cursor:'pointer', whiteSpace:'nowrap' }}>
-            {gpsTracking ? '⏹' : '▶'}
+              padding:'5px 10px', fontSize:11, fontWeight:700, color:gpsTracking?'#f87171':'#4a5a6a', whiteSpace:'nowrap' }}>
+            {gpsTracking ? '⏹ Stop' : '▶ Track'}
           </button>
 
           {/* XY */}
           <button onClick={() => setShowCoordPanel(v => !v)}
             style={{ background:showCoordPanel?'rgba(88,166,255,0.2)':'rgba(255,255,255,0.06)', border:'none', borderRadius:999,
-              padding:'5px 11px', fontSize:11, fontWeight:700, color:showCoordPanel?'#58a6ff':'#4a5a6a', cursor:'pointer' }}>
+              padding:'5px 10px', fontSize:11, fontWeight:700, color:showCoordPanel?'#58a6ff':'#4a5a6a' }}>
             XY
           </button>
 
@@ -5160,10 +5363,12 @@ function LinesTab({ lang='en' }) {
       {mainTab === 'trees' && (
         <div>
           {treePins.length === 0 ? (
-            <div className="card" style={{ textAlign:'center', padding:'30px 20px' }}>
-              <div style={{ fontSize:32 }}>🍁</div>
-              <div style={{ fontSize:14, color:'#5a6a7a', marginTop:8 }}>No trees yet</div>
-              <div style={{ fontSize:12, color:'#3d5068', marginTop:4 }}>Tap the map with "Tap Tree" mode to add trees</div>
+            <div className="card">
+              <div className="empty-state">
+                <div className="empty-icon">🍁</div>
+                <div className="empty-title">No trees yet</div>
+                Tap the map in Tap Tree mode to add your first tree.
+              </div>
             </div>
           ) : (
             <>
@@ -5567,11 +5772,11 @@ function WeatherTab({ lang='en', trees=0, units='GAL' }) {
     const D = wxData.daily;
     let runStreak = 0;
     days = D.time.slice(0, 7).map((date, i) => {
-      const hiF      = Math.round(D.temperature_2m_max[i]);
-      const loF      = Math.round(D.temperature_2m_min[i]);
-      const windMph  = Math.round(D.windspeed_10m_max[i] || 0);
-      const precipIn = +((D.precipitation_sum[i] || 0).toFixed(2));
-      const sunSec   = D.sunshine_duration[i] || 0;
+      const hiF      = Math.round(D.temperature_2m_max?.[i] ?? 32);
+      const loF      = Math.round(D.temperature_2m_min?.[i] ?? 20);
+      const windMph  = Math.round(D.windspeed_10m_max?.[i] || 0);
+      const precipIn = +((D.precipitation_sum?.[i] || 0).toFixed(2));
+      const sunSec   = D.sunshine_duration?.[i] || 0;
       const prevHiF  = i > 0 ? Math.round(D.temperature_2m_max[i-1]) : null;
       const sc       = _sapRunScore(hiF, loF, windMph, precipIn, sunSec, prevHiF, runStreak);
       if (sc.score >= 44) runStreak++; else runStreak = 0;
@@ -5579,8 +5784,8 @@ function WeatherTab({ lang='en', trees=0, units='GAL' }) {
       return {
         date, hiF, loF, windMph, precipIn, sunSec,
         score: sc.score, quality: sc.quality, buddyRisk: sc.buddyRisk,
-        dayLabel:  i === 0 ? t(lang,'today') : DAY[lang][dt.getDay()],
-        dateLabel: MON[lang][dt.getMonth()] + ' ' + dt.getDate()
+        dayLabel:  i === 0 ? t(lang,'today') : (DAY[lang] || DAY['en'])[dt.getDay()],
+        dateLabel: (MON[lang] || MON['en'])[dt.getMonth()] + ' ' + dt.getDate()
       };
     });
   }
