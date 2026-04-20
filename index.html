@@ -259,6 +259,70 @@
       font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 20px;
     }
 
+    /* ── BUDDY SAP / GRADE SECTION ── */
+    .buddy-section {
+      background: linear-gradient(135deg, #1a0a04 0%, #2b1505 60%, #1a0f08 100%);
+      color: #fff; padding: 80px 24px;
+    }
+    .buddy-inner {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: center;
+    }
+    @media (max-width: 800px) { .buddy-inner { grid-template-columns: 1fr; } }
+    .buddy-section .section-label { color: #f0883e; }
+    .buddy-section .section-title { color: #fff; }
+    .buddy-section .section-sub { color: rgba(255,255,255,0.65); max-width: none; }
+    .buddy-alert {
+      background: rgba(248,81,73,0.07); border: 1.5px solid rgba(248,81,73,0.35);
+      border-radius: 16px; padding: 24px; font-size: 14px;
+    }
+    .buddy-alert-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 18px;
+    }
+    .buddy-alert-icon { font-size: 22px; color: #f85149; }
+    .buddy-alert-title {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.12em;
+      color: #f85149;
+    }
+    .buddy-brix-row {
+      display: flex; gap: 16px; margin-bottom: 16px;
+    }
+    .buddy-brix-item {
+      background: rgba(0,0,0,0.3); border-radius: 10px; padding: 12px 16px; flex: 1; text-align: center;
+    }
+    .buddy-brix-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+    .buddy-brix-val { font-size: 22px; font-weight: 800; }
+    .buddy-warning-text {
+      font-size: 13px; color: rgba(255,255,255,0.65); line-height: 1.6;
+      margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .buddy-forecast-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; font-size: 12px;
+    }
+    .buddy-forecast-label { color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; }
+    .buddy-forecast-score { color: rgba(255,255,255,0.75); }
+    .buddy-action {
+      background: rgba(248,81,73,0.12); border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 10px; padding: 12px 16px; font-size: 13px;
+      color: #ffa07a; font-weight: 600; line-height: 1.5;
+    }
+    .buddy-points { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+    .buddy-point {
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .buddy-point-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+    .buddy-point-text { font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.6; }
+    .buddy-grade-row {
+      display: flex; align-items: center; gap: 16px; margin-top: 28px;
+    }
+    .buddy-grade-item {
+      flex: 1; border: 1.5px solid; border-radius: 10px; padding: 12px 14px;
+      background: rgba(0,0,0,0.25);
+    }
+    .buddy-grade-arrow { font-size: 20px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+
     /* ── DE SECTION ── */
     .de-section {
       background: linear-gradient(135deg, #1a3d2b 0%, #0f2318 100%);
@@ -414,6 +478,7 @@
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#forecast">Forecast</a>
+    <a href="#grade">Grade Alert</a>
     <a href="#pricing">Pricing</a>
   </div>
   <a class="nav-cta" href="#pricing">Get Access — $49</a>
@@ -425,8 +490,8 @@
     <div class="hero-leaf">🍁</div>
     <h1>The <em>complete</em> maple<br/>production platform.</h1>
     <p class="hero-sub">
-      Map your sugarbush. Score your sap runs. Track every gallon.
-      Get expert answers offline. SweetRun puts a full sugarhouse toolkit in your pocket — built for producers who treat maple like a business.
+      Map your sugarbush. Score your sap runs. Know when to boil — and when to stop.
+      SweetRun watches your Brix trend and the forecast so you never lose a batch of Golden to buddy sap. The complete maple platform for producers who treat maple like a business.
     </p>
     <div class="hero-cta-group">
       <a class="btn-primary" href="#pricing">Get SweetRun — $49/season</a>
@@ -477,6 +542,11 @@
         <div class="problem-icon">💸</div>
         <h3>Hidden waste and guesswork</h3>
         <p>Without RO tracking, DE calculations, and evaporation data, you don't know your real cost per gallon — or where to cut it.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📉</div>
+        <h3>Boiling buddy sap without knowing it</h3>
+        <p>Late-season sap can look perfectly clear in the tank. You don't find out it's gone to buddy sap until the syrup comes out dark and off-flavor — and it's already too late to pull your taps.</p>
       </div>
     </div>
   </div>
@@ -623,6 +693,74 @@
   </div>
 </section>
 
+<!-- BUDDY SAP / GRADE GUARDIAN -->
+<section class="buddy-section" id="grade">
+  <div class="container buddy-inner">
+    <div class="buddy-alert fade-in">
+      <div class="buddy-alert-header">
+        <span class="buddy-alert-icon">⚠</span>
+        <span class="buddy-alert-title">BUDDY SAP DETECTED</span>
+      </div>
+      <div class="buddy-brix-row">
+        <div class="buddy-brix-item">
+          <div class="buddy-brix-label">PEAK BRIX</div>
+          <div class="buddy-brix-val" style="color:#e0a44a;">2.4°</div>
+        </div>
+        <div class="buddy-brix-item">
+          <div class="buddy-brix-label">TODAY</div>
+          <div class="buddy-brix-val" style="color:#f0883e;">1.6°</div>
+        </div>
+        <div class="buddy-brix-item">
+          <div class="buddy-brix-label">DROP</div>
+          <div class="buddy-brix-val" style="color:#f85149;">−33%</div>
+        </div>
+      </div>
+      <div class="buddy-warning-text">
+        Brix has dropped more than 30% from peak — buddy sap risk is HIGH. Syrup made now will be darker and may carry an off-flavor that drops your grade.
+      </div>
+      <div class="buddy-forecast-row">
+        <div class="buddy-forecast-label">Tomorrow's forecast</div>
+        <div class="buddy-forecast-score">Hi 54° / Lo 41° — <span style="color:#f85149;font-weight:700;">Score 18 — No Freeze</span></div>
+      </div>
+      <div class="buddy-action">
+        🔥 Boil everything in your tanks today. Pull taps when buds start to swell.
+      </div>
+    </div>
+    <div class="fade-in">
+      <div class="section-label">Brix Trend + Buddy Sap Alert</div>
+      <h2 class="section-title">Don't lose your<br/>grade to bad timing.</h2>
+      <p class="section-sub">
+        Late-season sap looks identical to good sap — until you boil it. Buddy sap comes from trees that have begun to bud, and the syrup it makes is darker, cloudier, and carries an off-flavor that costs you your premium grade. You can't see it in the tank.
+      </p>
+      <div class="buddy-points">
+        <div class="buddy-point">
+          <div class="buddy-point-icon">📉</div>
+          <div class="buddy-point-text"><strong style="color:#fff;">SweetRun watches your Brix daily</strong> — log one reading per day and it plots the trend. A drop of more than 30% from your peak triggers a buddy sap warning.</div>
+        </div>
+        <div class="buddy-point">
+          <div class="buddy-point-icon">🌡️</div>
+          <div class="buddy-point-text"><strong style="color:#fff;">It cross-checks the 7-day forecast</strong> — if nights are holding above freezing, the season is over regardless of what the sap looks like in the tank.</div>
+        </div>
+        <div class="buddy-point">
+          <div class="buddy-point-icon">🔔</div>
+          <div class="buddy-point-text"><strong style="color:#fff;">You get the call early</strong> — boil what's in the tank today while you still have a run score worth acting on, and pull taps before buds blow.</div>
+        </div>
+      </div>
+      <div class="buddy-grade-row">
+        <div class="buddy-grade-item" style="border-color:#f5c842;">
+          <div style="color:#f5c842;font-weight:700;font-size:14px;">Golden Delicate</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;">First runs · best price</div>
+        </div>
+        <div class="buddy-grade-arrow">→</div>
+        <div class="buddy-grade-item" style="border-color:rgba(196,122,40,0.4);opacity:0.55;">
+          <div style="color:#c47a28;font-weight:700;font-size:14px;">Dark Robust</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:4px;">What buddy sap makes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- FEATURES GRID -->
 <section class="features" id="features">
   <div class="container">
@@ -679,9 +817,10 @@
       </div>
 
       <div class="feature-card">
-        <div class="feature-icon" style="background:#fff8e1;">📈</div>
-        <h3>Degree Days + Brix Trends</h3>
-        <p>Track heat units above 40°F since tap day and log daily sap Brix readings. A Brix drop is your early warning that the season is ending — SweetRun flags it for you.</p>
+        <div class="feature-icon" style="background:#fff8e1;">⚠️</div>
+        <h3>Buddy Sap + Brix Trend Alert <span class="new-badge">KEY</span></h3>
+        <p>Log a daily Brix reading and SweetRun plots the trend. When your Brix drops 30%+ from peak — and the forecast shows no more freeze — you get a buddy sap warning. Boil now, pull taps, protect your grade.</p>
+        <span class="feature-badge new">GRADE SAVER</span>
       </div>
 
       <div class="feature-card">
@@ -790,6 +929,11 @@
         <div class="roi-label">Sap yield increase from spout sanitation — per UVM Proctor research. SugarSage explains the method.</div>
         <div class="roi-note">On 500 taps that's 50+ extra gallons of sap</div>
       </div>
+      <div class="roi-card">
+        <div class="roi-num">$4–8/gal</div>
+        <div class="roi-label">Retail price difference between Golden Delicate and Dark Robust. One missed buddy sap call can drop an entire batch a full grade.</div>
+        <div class="roi-note">On 10 gallons that's $40–80 lost per late call</div>
+      </div>
     </div>
   </div>
 </section>
@@ -816,7 +960,8 @@
         <li><span>✓</span><span>Diagnose My Operation bottleneck finder</span></li>
         <li><span>✓</span><span>Season Recap with charts, year-over-year, and PDF export</span></li>
         <li><span>✓</span><span>RO savings calculator with preheater model</span></li>
-        <li><span>✓</span><span>Tap rotation tracker, degree days, Brix trend logger</span></li>
+        <li><span>✓</span><span>Buddy sap alert — Brix trend + forecast cross-check to protect your grade</span></li>
+        <li><span>✓</span><span>Tap rotation tracker and degree day counter</span></li>
         <li><span>✓</span><span>Import from SugarCalc, SapSpy &amp; SapTrac (PDF or CSV)</span></li>
         <li><span>✓</span><span>100% offline — works without cell service</span></li>
         <li><span>✓</span><span>Your data never leaves your device. Ever.</span></li>
