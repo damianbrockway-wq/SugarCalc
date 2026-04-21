@@ -1229,7 +1229,8 @@ function FirstSeasonWizard({ onClose, onComplete }) {
         border:`2px solid ${cur===val ? accent : '#1e2d3d'}`,
         background: cur===val ? `rgba(${accent==='#2dd4a7'?'45,212,167':accent==='#58a6ff'?'88,166,255':accent==='#a78bfa'?'167,139,250':accent==='#3fb950'?'63,185,80':accent==='#f59e0b'?'245,158,11':'45,212,167'},0.09)` : '#0a1420',
         cursor:'pointer', transition:'all 0.15s', textAlign: wide ? 'left' : 'center',
-        display: wide ? 'flex' : 'block', alignItems: wide ? 'center' : undefined, gap: wide ? 10 : 0}}>
+        display: wide ? 'flex' : 'block', alignItems: wide ? 'center' : undefined, gap: wide ? 10 : 0,
+        width:'100%', minWidth:0, boxSizing:'border-box'}}>
       {wide
         ? <><span style={{fontSize:20}}>{icon}</span>
             <div>
@@ -1261,9 +1262,9 @@ function FirstSeasonWizard({ onClose, onComplete }) {
       <label style={{fontSize:11,fontWeight:700,color:'#5a6a7a',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:10}}>
         Average trunk diameter at chest height
       </label>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,minWidth:0}}>
         <Opt val="small"  cur={trunkSize} set={setTrunkSize} accent="#2dd4a7" icon="🌱" label='Under 10"' sub="1 tap/tree"/>
-        <Opt val="medium" cur={trunkSize} set={setTrunkSize} accent="#2dd4a7" icon="🌳" label='10"–18"'   sub="1–2 taps"/>
+        <Opt val="medium" cur={trunkSize} set={setTrunkSize} accent="#2dd4a7" icon="🌳" label='10–18"'    sub="1–2 taps"/>
         <Opt val="large"  cur={trunkSize} set={setTrunkSize} accent="#2dd4a7" icon="🌲" label='Over 18"'  sub="2–3 taps"/>
       </div>
     </div>,
@@ -1297,7 +1298,7 @@ function FirstSeasonWizard({ onClose, onComplete }) {
       </div>
       {hasEvap && <>
         <label style={{fontSize:11,fontWeight:700,color:'#5a6a7a',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:10}}>Pan size</label>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:18}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(56px,1fr))',gap:6,marginBottom:18}}>
           {['2x3','2x4','2x6','2x8','3x8','3x10','4x12'].map(sz=>(
             <button key={sz} onClick={()=>setPanSize(sz)}
               style={{padding:'9px 4px',borderRadius:10,border:`2px solid ${panSize===sz?'#f59e0b':'#1e2d3d'}`,
@@ -1428,7 +1429,7 @@ function FirstSeasonWizard({ onClose, onComplete }) {
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',zIndex:9000,
       display:'flex',alignItems:'flex-end',justifyContent:'center',backdropFilter:'blur(4px)'}}>
       <div style={{background:'#07090f',border:'1px solid #1e2d3d',borderRadius:'24px 24px 0 0',
-        padding:'24px 20px 32px',width:'100%',maxWidth:540,maxHeight:'92vh',overflow:'auto',
+        padding:'24px 20px 32px',width:'100%',maxWidth:540,maxHeight:'92vh',overflowY:'auto',overflowX:'hidden',
         boxSizing:'border-box',animation:'fadeIn 0.3s ease both'}}>
         {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18}}>
@@ -2287,8 +2288,8 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
           { step:'Catch the cloudy first pour and return it to the pot', detail:'Keep a small cup or pot at the spout. Once the syrup runs clear and golden, switch over to your collection vessel.' },
           { step:'Watch your pressure gauge', detail:'Pressure will climb slowly as the cake builds — that\'s normal. Stop if it hits 40 PSI. That means the plates are full and it\'s time to clean and repack.' },
         ] : [
-          { step:'Fill the press with 1–2 gallons of hot water (150–170°F)', detail:'This is your precharge charge — it\'s what carries the DE onto the plates. Don\'t use syrup for this step.' },
-          { step:`Add ${fmt(cupsPerPlate,1)} cups of DE to the hot water and stir`, detail:`This is the pre-coat amount for your ${plates}-plate press. Stir it into the hot water until fully mixed.` },
+          { step:'Fill the press with 1–2 gallons of hot water (150–170°F)', detail:'This is what carries the DE onto the plates. Don\'t use syrup — hot water only. The water gets drained out before you run syrup.' },
+          { step:`Add ${fmt(cups,1)} cups of DE to the hot water and stir`, detail:`This is your full precharge amount for the ${plates}-plate press${szn==='late'?' at the late-season rate':''}. Stir it into the hot water until fully mixed — no dry clumps.` },
           { step:'Circulate the DE-water mix through the press', detail:'Run it through and back into your bucket several times until the water coming out runs clear. The plates are now coated.' },
           { step:'Drain the water from the press', detail:'Open the drain valve and let the precharge water out. Your plates now have a thin DE cake on them — don\'t disturb them.' },
           { step:'Heat your syrup to 185–190°F and start filtering', detail:'Syrup should come out clear right from the start since the plates are already coated. Collect from the first drop.' },
@@ -3040,6 +3041,7 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
   const [showC, setShowC] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [autoCopy, setAutoCopy] = useState(()=>ls.get('sg_autocopy',{ro:false,evap:false}));
+  const [bfTarget, setBfTarget] = useState({ro:false,evap:false});
   const setAutoCopyField = (field, val) => {
     const next = {...autoCopy, [field]:val};
     setAutoCopy(next); ls.set('sg_autocopy', next);
@@ -3326,6 +3328,64 @@ function LogTab({ season, setSeason, trees, setTrees, units, sapBrix, lang='en' 
           </label>
         </div>
       </div>
+
+      {/* ── FILL FROM SEASON TOTAL ── */}
+      {sapT > 0 && (
+        <div className="card" style={{ marginBottom:8, background:'rgba(88,166,255,0.04)', border:'1px solid rgba(88,166,255,0.18)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
+            <I.download size={15} color="#58a6ff" />
+            <span style={{ fontWeight:700, fontSize:14, color:'#e6edf3' }}>Fill R/O &amp; Evaporator from Season Total</span>
+          </div>
+          <div style={{ fontSize:13, color:'#5a6a7a', marginBottom:12, lineHeight:1.5 }}>
+            You have <strong style={{ color:'#2dd4a7' }}>{fmt(sapT,1)} gal</strong> of sap logged this season.
+            If all of it went through R/O and/or the evaporator, use this to add that total as a single entry — no need to re-enter run by run.
+          </div>
+          <div style={{ display:'flex', gap:16, marginBottom:14 }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+              <input type="checkbox" checked={bfTarget.ro} onChange={e=>setBfTarget(p=>({...p,ro:e.target.checked}))}
+                style={{ accentColor:'#58a6ff', width:17, height:17 }} />
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'#58a6ff' }}>R/O</div>
+                {roT > 0 && <div style={{ fontSize:11, color:'#f0883e', marginTop:1 }}>{fmt(roT,1)} gal already logged — will add to it</div>}
+              </div>
+            </label>
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+              <input type="checkbox" checked={bfTarget.evap} onChange={e=>setBfTarget(p=>({...p,evap:e.target.checked}))}
+                style={{ accentColor:'#f0883e', width:17, height:17 }} />
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'#f0883e' }}>Evaporator</div>
+                {evT > 0 && <div style={{ fontSize:11, color:'#f0883e', marginTop:1 }}>{fmt(evT,1)} gal already logged — will add to it</div>}
+              </div>
+            </label>
+          </div>
+          <button
+            disabled={!bfTarget.ro && !bfTarget.evap}
+            onClick={() => {
+              const targets = [bfTarget.ro && 'R/O', bfTarget.evap && 'Evaporator'].filter(Boolean).join(' and ');
+              const warn = [bfTarget.ro && roT > 0 && `R/O already has ${fmt(roT,1)} gal`, bfTarget.evap && evT > 0 && `Evaporator already has ${fmt(evT,1)} gal`].filter(Boolean);
+              const warnStr = warn.length > 0 ? `\n\nHeads up: ${warn.join(', ')} — this adds on top of that, it does not replace it.` : '';
+              if (!window.confirm(`Add ${fmt(sapT,1)} gal to ${targets}?${warnStr}`)) return;
+              const today = new Date().toISOString().split('T')[0];
+              setLogs(prev => {
+                const prevSlog = prev[season] || empty;
+                const updates  = { ...prevSlog };
+                if (bfTarget.ro)   updates.sapRO   = [...(prevSlog.sapRO  ||[]), { id:Date.now(),   date:today, val:sapT, note:'← season total (all sap)' }];
+                if (bfTarget.evap) updates.sapEvap = [...(prevSlog.sapEvap||[]), { id:Date.now()+1, date:today, val:sapT, note:'← season total (all sap)' }];
+                const up = { ...prev, [season]: updates };
+                ls.set('sg_logs2', up);
+                return up;
+              });
+              setBfTarget({ro:false,evap:false});
+            }}
+            style={{ width:'100%', padding:'12px', borderRadius:10, border:'none',
+              background: (bfTarget.ro||bfTarget.evap) ? 'linear-gradient(135deg,#1a3a5c,#0f2a45)' : '#0d1520',
+              color: (bfTarget.ro||bfTarget.evap) ? '#58a6ff' : '#3d5068',
+              fontSize:14, fontWeight:700, cursor:(bfTarget.ro||bfTarget.evap)?'pointer':'not-allowed',
+              transition:'all 0.15s' }}>
+            ↓ Add {fmt(sapT,1)} gal to {[bfTarget.ro&&'R/O',bfTarget.evap&&'Evaporator'].filter(Boolean).join(' + ') || 'selected fields'}
+          </button>
+        </div>
+      )}
 
       {/* ── Collection Point filter pills (only shown when points are defined) ── */}
       {cpoints.length > 0 && (
@@ -5720,6 +5780,23 @@ function WeatherTab({ lang='en', trees=0, units='GAL' }) {
     setLoading(false);
   };
 
+  const _reverseGeocode = async (la, lo) => {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${la}&lon=${lo}&format=json&zoom=10`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const d = await r.json();
+      const a = d.address || {};
+      // Pick the most human-useful level: town > city > county > state
+      const place = a.town || a.city || a.village || a.hamlet || a.county || a.state || '';
+      const state = a.state || a.country || '';
+      if (place) return [place, state].filter(Boolean).join(', ');
+    } catch {}
+    // Fallback to coordinates if reverse geocode fails
+    return la.toFixed(2) + '°, ' + lo.toFixed(2) + '°';
+  };
+
   const useGPS = () => {
     if (location.protocol === 'file:') {
       setError('GPS requires HTTPS hosting. Use zip/city search, or serve from a local server.');
@@ -5728,9 +5805,9 @@ function WeatherTab({ lang='en', trees=0, units='GAL' }) {
     if (!navigator.geolocation) { setError('GPS not supported by this browser.'); return; }
     setLoading(true); setError('');
     navigator.geolocation.getCurrentPosition(
-      pos => {
+      async pos => {
         const la = pos.coords.latitude, lo = pos.coords.longitude;
-        const name = la.toFixed(2) + ', ' + lo.toFixed(2);
+        const name = await _reverseGeocode(la, lo);
         setWxLat(la); setWxLon(lo); setLocName(name);
         ls.set('sg_wx_lat', la); ls.set('sg_wx_lon', lo); ls.set('sg_wx_name', name);
         _wxFetch(la, lo);
@@ -6977,8 +7054,9 @@ function SapFreshnessTracker() {
   const [locErr,   setLocErr]   = React.useState('');
   const [open,     setOpen]     = React.useState(true);
 
-  const lat = ls.get('sg_ddlat', null);
-  const lon = ls.get('sg_ddlon', null);
+  // Use weather tab location first (sg_wx_lat/lon), fall back to degree-day tab location
+  const lat = ls.get('sg_wx_lat', null) ?? ls.get('sg_ddlat', null);
+  const lon = ls.get('sg_wx_lon', null) ?? ls.get('sg_ddlon', null);
 
   // Fetch hourly temps: past 2 days + next 2 days
   const fetchTemps = React.useCallback(async () => {
@@ -7107,7 +7185,7 @@ function SapFreshnessTracker() {
           {/* No location set */}
           {!lat && (
             <div style={{textAlign:'center',padding:'20px 0',color:'#8a6040',fontSize:13}}>
-              Set your location in the <strong style={{color:'#f0883e'}}>Weather tab</strong> first,
+              Set your location in the <strong style={{color:'#f0883e'}}>Weather tab</strong> or <strong style={{color:'#f0883e'}}>Boil Point tab</strong> first,
               then come back to enable freshness tracking.
             </div>
           )}
@@ -9291,31 +9369,33 @@ function App() {
 </script>
 
 <script>
-// ── PWA Service Worker (works when hosted over HTTPS) ──────────────────────────
+// ── PWA Service Worker ─────────────────────────────────────────────────────────
+// Registers /app/sw.js — handles caching, offline support, and cache versioning.
+// localStorage data (all sg_* keys) is NEVER touched by the service worker.
+// To force all users to get the latest app: bump CACHE name in app/sw.js.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  const SW_CODE = `
-const CACHE = 'sugarcalc-v1';
-const ASSETS = [self.location.pathname];
-self.addEventListener('install', e => e.waitUntil(
-  caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
-));
-self.addEventListener('activate', e => e.waitUntil(
-  caches.keys().then(ks => Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-    .then(() => self.clients.claim())
-));
-self.addEventListener('fetch', e => e.respondWith(
-  caches.match(e.request).then(r => r || fetch(e.request).then(res => {
-    if (!res || res.status !== 200 || res.type !== 'basic') return res;
-    const clone = res.clone();
-    caches.open(CACHE).then(c => c.put(e.request, clone));
-    return res;
-  }).catch(() => caches.match(e.request)))
-));`;
-  const blob = new Blob([SW_CODE], { type:'application/javascript' });
-  const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).then(reg => {
-    console.log('[SweetRun] Service worker registered — app works offline.');
-  }).catch(err => console.warn('[SweetRun] SW registration failed:', err));
+  navigator.serviceWorker.register('/app/sw.js', { scope: '/app/' })
+    .then(reg => {
+      console.log('[SweetRun] SW registered, scope:', reg.scope);
+      // Check for a waiting SW update and activate it immediately
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available — activate without requiring a user refresh
+            newSW.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+    })
+    .catch(err => console.warn('[SweetRun] SW registration failed:', err));
+
+  // When a new SW takes over, reload to get the latest app shell
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) { refreshing = true; window.location.reload(); }
+  });
 }
 </script>
 </body>

@@ -1,32 +1,16 @@
 {
-  "name": "SugarCalc — Maple Production Tools",
-  "short_name": "SugarCalc",
-  "description": "Maple syrup production calculator with 7-day sap run weather predictions",
-  "start_url": "./sugarcalc.html",
+  "name": "SweetRun",
+  "short_name": "SweetRun",
+  "description": "The complete maple production platform — map your sugarbush, forecast sap runs, track every gallon.",
+  "start_url": "/app/",
+  "scope": "/app/",
   "display": "standalone",
-  "background_color": "#0d1117",
-  "theme_color": "#c85a00",
+  "background_color": "#07090f",
+  "theme_color": "#07090f",
   "orientation": "portrait-primary",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "apple-touch-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ],
-  "categories": ["utilities"],
-  "screenshots": []
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }
