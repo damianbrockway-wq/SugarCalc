@@ -966,7 +966,7 @@
         <li><span>✓</span><span>100% offline — works without cell service</span></li>
         <li><span>✓</span><span>Your data never leaves your device. Ever.</span></li>
       </ul>
-      <a class="btn-buy" href="YOUR_STRIPE_PAYMENT_LINK" id="buy-btn">
+      <a class="btn-buy" href="https://buy.stripe.com/7sYfZi3A4f2MbXA3as14400" id="buy-btn" target="_blank" rel="noopener">
         Get SweetRun — $49
       </a>
       <p class="price-guarantee">🔒 Secure payment via Stripe · Instant access after purchase</p>
@@ -1019,13 +1019,7 @@
   );
   document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
-  // Buy button
-  document.getElementById('buy-btn').addEventListener('click', function(e) {
-    if (this.href === window.location.href || this.href.includes('YOUR_STRIPE')) {
-      e.preventDefault();
-      alert('Payment link coming soon! Email hello@sweetrun.app to get early access.');
-    }
-  });
+  // Buy button — live Stripe link, no interception needed
 </script>
 
 </body>
