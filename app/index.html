@@ -4509,6 +4509,52 @@ function _sbImportPropertyFile(file) {
   reader.readAsText(file);
 }
 
+// ── OFFLINE TILE CACHE ──────────────────────────────────────────────────────
+// Convert lat/lng to Slippy Map tile x,y at a given zoom level.
+function _sbTileXY(lat, lng, z) {
+  const n = 1 << z;
+  const x = Math.floor((lng + 180) / 360 * n);
+  const latR = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2 * n);
+  return { x: Math.max(0, Math.min(n - 1, x)), y: Math.max(0, Math.min(n - 1, y)) };
+}
+
+// Pre-fetch every satellite + label tile visible at current zoom ±1 so the
+// service worker caches them and the map works offline next time.
+async function _sbCacheTiles(map, onProgress) {
+  if (!map) return { error: 'Map not ready.' };
+  const bounds = map.getBounds();
+  const z      = Math.round(map.getZoom());
+  const minZ   = Math.max(12, z - 1);
+  const maxZ   = Math.min(18, z + 1);
+
+  const urls = [];
+  for (let zoom = minZ; zoom <= maxZ; zoom++) {
+    const nw = _sbTileXY(bounds.getNorth(), bounds.getWest(), zoom);
+    const se = _sbTileXY(bounds.getSouth(), bounds.getEast(), zoom);
+    for (let tx = nw.x; tx <= se.x; tx++) {
+      for (let ty = nw.y; ty <= se.y; ty++) {
+        // Esri uses z/y/x tile order
+        urls.push(`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${ty}/${tx}`);
+        urls.push(`https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/${zoom}/${ty}/${tx}`);
+      }
+    }
+  }
+
+  const MAX = 600;
+  if (urls.length > MAX) {
+    return { error: `Area too large (${Math.round(urls.length / 2)} tiles). Zoom in closer and try again.` };
+  }
+
+  let done = 0, errors = 0;
+  for (const url of urls) {
+    try { await fetch(url); } catch { errors++; }
+    done++;
+    onProgress(Math.round(done / urls.length * 100), done, urls.length);
+  }
+  return { count: Math.round(urls.length / 2), errors };
+}
+
 function LinesTab({ lang='en' }) {
   const [leafletReady, setLeafletReady] = React.useState(!!window.L);
   const [pins, setPins]           = React.useState(() => ls.get('sg_lines_pins', []));
@@ -4518,6 +4564,9 @@ function LinesTab({ lang='en' }) {
   const [analyzing, setAnalyzing]       = React.useState(false);
   const [gpsLoading, setGpsLoading]     = React.useState(false);
   const [gpsTracking, setGpsTracking]   = React.useState(false);
+  const [caching, setCaching]           = React.useState(false);
+  const [cacheMsg, setCacheMsg]         = React.useState('');
+  const [cachePct, setCachePct]         = React.useState(0);
   const [findingSpots, setFindingSpots] = React.useState(false);
   const [routeResults, setRouteResults] = React.useState([]);
   const [tankSpots, setTankSpots]       = React.useState([]);
@@ -4635,7 +4684,8 @@ function LinesTab({ lang='en' }) {
     navigator.geolocation.getCurrentPosition(
       pos => {
         setGpsLoading(false);
-        _dropPin(pos.coords.latitude, pos.coords.longitude, modeRef.current, pinsRef, setPins);
+        const acc = pos.coords.accuracy != null ? Math.round(pos.coords.accuracy) : null;
+        _dropPin(pos.coords.latitude, pos.coords.longitude, modeRef.current, pinsRef, setPins, { accuracy: acc });
         _lMap?.setView([pos.coords.latitude, pos.coords.longitude], 18);
       },
       () => setGpsLoading(false),
@@ -4668,6 +4718,26 @@ function LinesTab({ lang='en' }) {
     if (_lGpsMarker) { try { _lMap?.removeLayer(_lGpsMarker); } catch {} _lGpsMarker = null; }
     if (_lGpsCircle) { try { _lMap?.removeLayer(_lGpsCircle); } catch {} _lGpsCircle = null; }
     setGpsTracking(false);
+  };
+
+  // Save current map view tiles to offline cache
+  const saveOffline = async () => {
+    if (!_lMap || caching) return;
+    setCaching(true);
+    setCacheMsg('Saving map tiles…');
+    setCachePct(0);
+    const result = await _sbCacheTiles(_lMap, (pct, done, total) => {
+      setCachePct(pct);
+      setCacheMsg(`Saving… ${done} / ${total} tiles`);
+    });
+    setCaching(false);
+    if (result.error) {
+      setCacheMsg('⚠️ ' + result.error);
+      setTimeout(() => setCacheMsg(''), 5000);
+    } else {
+      setCacheMsg(`✓ ${result.count} tiles saved — map works offline now`);
+      setTimeout(() => setCacheMsg(''), 5000);
+    }
   };
 
   // Place pin by typed coordinates
@@ -4935,8 +5005,29 @@ function LinesTab({ lang='en' }) {
   ];
   const _activeCfg = _MODE_TABS.find(c => c.id === mode) || _MODE_TABS[0];
 
+  const [betaDismissed, setBetaDismissed] = React.useState(() => ls.get('sg_map_beta_dismissed', false));
+  const dismissBeta = () => { ls.set('sg_map_beta_dismissed', true); setBetaDismissed(true); };
+
   return (
     <div style={{ position:'relative' }}>
+
+      {/* ── Beta notice ─────────────────────────────────────────────────── */}
+      {!betaDismissed && (
+        <div style={{ background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.25)',
+          borderRadius:12, padding:'10px 14px', marginBottom:10,
+          display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 }}>
+          <div>
+            <div style={{ fontSize:11, fontWeight:800, color:'#fbbf24', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>
+              β Beta Feature
+            </div>
+            <div style={{ fontSize:11, color:'#8a9ab5', lineHeight:1.5 }}>
+              Sugarbush mapping is actively being improved. GPS accuracy varies under canopy (5–15 m typical). Route analysis and elevation data require internet. Tap <b style={{color:'#c9d1d9'}}>💾 Save offline</b> while connected to cache the map for field use.
+            </div>
+          </div>
+          <button onClick={dismissBeta}
+            style={{ background:'none', border:'none', color:'#5a6a7a', fontSize:18, cursor:'pointer', flexShrink:0, lineHeight:1, padding:'0 2px' }}>✕</button>
+        </div>
+      )}
 
       {/* ── Mode selector — nav-tab style ──────────────────────────────── */}
       <div style={{ display:'flex', gap:3, marginBottom:10, overflowX:'auto', paddingBottom:1 }}>
@@ -5009,7 +5100,30 @@ function LinesTab({ lang='en' }) {
             XY
           </button>
 
+          {/* Save for offline */}
+          <button onClick={saveOffline} disabled={caching || !leafletReady}
+            title="Download visible map tiles so this area works offline"
+            style={{ background:caching?'rgba(45,212,167,0.08)':'rgba(45,212,167,0.14)', border:'none', borderRadius:999,
+              padding:'5px 10px', fontSize:11, fontWeight:700,
+              color:caching?'#4a5a6a':'#2dd4a7', whiteSpace:'nowrap',
+              opacity:(caching||!leafletReady)?0.5:1, cursor:caching?'default':'pointer' }}>
+            {caching ? `💾 ${cachePct}%` : '💾 Save offline'}
+          </button>
+
         </div>
+
+        {/* Cache progress / confirmation */}
+        {cacheMsg ? (
+          <div style={{ margin:'6px 12px 0', background:'rgba(45,212,167,0.08)', border:'1px solid rgba(45,212,167,0.2)',
+            borderRadius:8, padding:'6px 12px', fontSize:11, color:'#2dd4a7', display:'flex', alignItems:'center', gap:8 }}>
+            {caching && (
+              <div style={{ flex:1, height:3, background:'rgba(45,212,167,0.15)', borderRadius:2, overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${cachePct}%`, background:'#2dd4a7', borderRadius:2, transition:'width 0.2s' }} />
+              </div>
+            )}
+            <span>{cacheMsg}</span>
+          </div>
+        ) : null}
 
         {/* Coordinate entry */}
         {showCoordPanel && (
@@ -5039,6 +5153,36 @@ function LinesTab({ lang='en' }) {
             ? <div style={{ height:390, display:'flex', alignItems:'center', justifyContent:'center', color:'#4a5a6a', fontSize:13 }}>Loading map…</div>
             : <div ref={mapRef} style={{ height:390 }} />
           }
+        </div>
+
+        {/* ── Offline tile save — always-visible card inside map panel ── */}
+        <div style={{ margin:'0 10px 10px', padding:'10px 12px', background:'rgba(45,212,167,0.05)', border:'1px solid rgba(45,212,167,0.15)', borderRadius:10 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:'#2dd4a7', marginBottom:2 }}>📶 Save Map for Offline</div>
+              <div style={{ fontSize:10, color:'#5a6a7a', lineHeight:1.4 }}>
+                Zoom to your sugarbush, then tap Save. Works on next visit without cell service.
+              </div>
+            </div>
+            <button onClick={saveOffline} disabled={caching || !leafletReady}
+              style={{ background:caching?'rgba(45,212,167,0.08)':'rgba(45,212,167,0.18)',
+                border:'1px solid rgba(45,212,167,0.3)', borderRadius:8,
+                padding:'7px 13px', fontSize:11, fontWeight:700, color:caching?'#4a5a6a':'#2dd4a7',
+                whiteSpace:'nowrap', flexShrink:0,
+                opacity:(caching||!leafletReady)?0.5:1, cursor:caching?'default':'pointer' }}>
+              {caching ? `${cachePct}%` : 'Save'}
+            </button>
+          </div>
+          {cacheMsg && (
+            <div style={{ marginTop:8, fontSize:10, color: cacheMsg.startsWith('✓') ? '#2dd4a7' : cacheMsg.startsWith('⚠') ? '#f4a44a' : '#8a9ab5' }}>
+              {caching && (
+                <div style={{ height:2, background:'rgba(45,212,167,0.15)', borderRadius:1, marginBottom:5, overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:`${cachePct}%`, background:'#2dd4a7', borderRadius:1, transition:'width 0.2s' }} />
+                </div>
+              )}
+              {cacheMsg}
+            </div>
+          )}
         </div>
 
         {/* Stats + action strip */}
@@ -5591,7 +5735,16 @@ function LinesTab({ lang='en' }) {
               <span style={{ fontSize:20 }}>{_PIN_TYPE_CFG.find(c=>c.id===selectedPin.type)?.emoji||'📍'}</span>
               <div>
                 <div style={{ fontWeight:800, fontSize:16, color:'#c9d1d9' }}>{selectedPin.label}</div>
-                <div style={{ fontSize:11, color:'#5a6a7a' }}>{selectedPin.lat.toFixed(5)}, {selectedPin.lon.toFixed(5)}</div>
+                <div style={{ fontSize:11, color:'#5a6a7a', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                  <span>{selectedPin.lat.toFixed(5)}, {selectedPin.lon.toFixed(5)}</span>
+                  {selectedPin.accuracy != null && (
+                    <span style={{
+                      fontWeight:700, fontSize:10, borderRadius:4, padding:'1px 5px',
+                      background: selectedPin.accuracy <= 5 ? 'rgba(45,212,167,0.15)' : selectedPin.accuracy <= 15 ? 'rgba(244,164,74,0.15)' : 'rgba(248,113,113,0.15)',
+                      color:       selectedPin.accuracy <= 5 ? '#2dd4a7'              : selectedPin.accuracy <= 15 ? '#f4a44a'              : '#f87171',
+                    }}>± {selectedPin.accuracy} m</span>
+                  )}
+                </div>
               </div>
             </div>
             <button onClick={() => setShowPinPanel(false)} style={{ background:'#1e2d3d', border:'none', borderRadius:'50%', width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', color:'#8b949e', cursor:'pointer', fontSize:16 }}>✕</button>
@@ -9235,7 +9388,7 @@ function App() {
     { id:'equip',   Icon:I.wrench,      label:t(lang,'tabEquip')   },
     { id:'tasks',   Icon:I.clipboard,   label:t(lang,'tabTasks')   },
     { id:'weather', Icon:I.snowflake,   label:'Weather'            },
-    ...(BETA_FEATURES ? [{ id:'lines',    Icon:I.tree, label:'Lines 🧪'    }] : []),
+    ...(BETA_FEATURES ? [{ id:'lines',    Icon:I.tree, label:'Map β'       }] : []),
     ...(BETA_FEATURES ? [{ id:'diagnose', Icon:I.zap,  label:'Diagnose 🧪' }] : []),
   ];
 

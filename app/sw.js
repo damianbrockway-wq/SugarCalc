@@ -3,7 +3,8 @@
 // Example: 'sweetrun-v1' → 'sweetrun-v2'
 // localStorage data is NEVER touched by this file — it is purely cache management.
 
-const CACHE = 'sweetrun-v1';
+const CACHE      = 'sweetrun-v1';
+const TILE_CACHE = 'sweetrun-tiles-v1';   // kept separately — never auto-purged on app update
 
 // Core app shell — everything SweetRun needs to run fully offline
 const ASSETS = [
@@ -26,7 +27,7 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(keys => Promise.all(
         keys
-          .filter(k => k !== CACHE)   // keep only the current cache
+          .filter(k => k !== CACHE && k !== TILE_CACHE)   // keep app cache AND tile cache
           .map(k => {
             console.log('[SweetRun SW] Clearing old cache:', k);
             return caches.delete(k);
@@ -50,6 +51,32 @@ self.addEventListener('fetch', event => {
       fetch(event.request).catch(() =>
         new Response(JSON.stringify({ error: 'offline' }), {
           headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    );
+    return;
+  }
+
+  // Map tiles — cache-first so the sugarbush map works offline after a save
+  const isTile = url.hostname === 'server.arcgisonline.com'
+              || url.hostname === 'services.arcgisonline.com'
+              || url.hostname === 'clarity.maptiles.arcgis.com'
+              || url.hostname === 'gis.apfo.usda.gov'
+              || url.hostname.endsWith('openstreetmap.org');
+
+  if (isTile) {
+    event.respondWith(
+      caches.open(TILE_CACHE).then(cache =>
+        cache.match(event.request).then(cached => {
+          if (cached) return cached;
+          return fetch(event.request)
+            .then(response => {
+              if (response && response.status === 200) {
+                cache.put(event.request, response.clone());
+              }
+              return response;
+            })
+            .catch(() => new Response('', { status: 503, statusText: 'Tile offline' }));
         })
       )
     );
