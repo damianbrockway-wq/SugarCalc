@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SweetRun — Batch Provenance</title>
+<meta name="description" content="Maple syrup batch provenance — tracked with SweetRun"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#07090f;color:#c9d1d9;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px}
+  .card{width:100%;max-width:440px;background:#0d1521;border-radius:20px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,0.6)}
+
+  /* HEADER */
+  .header{background:linear-gradient(135deg,#1a3d2b,#0f2318);padding:24px 24px 20px;position:relative;overflow:hidden}
+  .header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80% 10%,rgba(212,131,26,0.2) 0%,transparent 60%)}
+  .header-inner{position:relative;display:flex;justify-content:space-between;align-items:flex-start}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand-leaf{font-size:28px;line-height:1}
+  .brand-name{font-size:26px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .brand-sub{font-size:9px;font-weight:700;letter-spacing:0.16em;color:rgba(255,255,255,0.45);text-transform:uppercase;margin-top:3px}
+  .batch-pill{background:rgba(45,212,167,0.15);border:1px solid rgba(45,212,167,0.3);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#2dd4a7}
+
+  /* GRADE BAND */
+  .grade-band{padding:16px 24px;display:flex;align-items:center;gap:14px}
+  .grade-swatch{width:44px;height:44px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,0.1)}
+  .grade-label{font-size:9px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#5a6a7a;margin-bottom:3px}
+  .grade-name{font-size:20px;font-weight:800;line-height:1.1}
+
+  /* STATS */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#131e2c;border-top:1px solid #131e2c;border-bottom:1px solid #131e2c}
+  .stat{background:#0d1521;padding:14px 16px}
+  .stat-label{font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#3d5068;margin-bottom:4px}
+  .stat-val{font-size:18px;font-weight:800;color:#e6edf3;line-height:1}
+  .stat-unit{font-size:10px;color:#5a6a7a;font-weight:500;margin-top:2px}
+
+  /* DETAILS */
+  .details{padding:18px 24px;display:flex;flex-direction:column;gap:10px}
+  .detail-row{display:flex;align-items:center;gap:10px}
+  .detail-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+  .detail-text{font-size:13px;color:#8a9ab5;line-height:1.4}
+  .detail-text strong{color:#c9d1d9}
+
+  /* FOOTER */
+  .footer{background:#0a1018;border-top:1px solid #131e2c;padding:18px 24px;display:flex;align-items:center;gap:16px}
+  .footer-qr{width:72px;height:72px;background:#fff;border-radius:8px;padding:4px;flex-shrink:0}
+  .footer-qr img{width:100%;height:100%;display:block}
+  .footer-copy{font-size:11px;color:#3d5068;line-height:1.6}
+  .footer-copy a{color:#2dd4a7;text-decoration:none;font-weight:700}
+
+  /* MISSING */
+  .missing{text-align:center;padding:60px 24px;color:#3d5068}
+  .missing h2{font-size:20px;margin-bottom:8px;color:#5a6a7a}
+  .missing p{font-size:14px;line-height:1.6}
+
+  /* WATERMARK */
+  .watermark{margin-top:24px;font-size:11px;color:#2a3a4a;text-align:center}
+  .watermark a{color:#2dd4a7;text-decoration:none;font-weight:700;opacity:0.7}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div id="content"></div>
+</div>
+<div class="watermark">Tracked with <a href="https://sweetrun.app">sweetrun.app</a></div>
+
+<script>
+const GRADES = {
+  golden: { name:'Golden Delicate', color:'#f5c842', bg:'rgba(245,200,66,0.12)' },
+  amber:  { name:'Amber Rich',      color:'#e0a44a', bg:'rgba(224,164,74,0.12)' },
+  dark:   { name:'Dark Robust',     color:'#c47a28', bg:'rgba(196,122,40,0.12)' },
+  vdark:  { name:'Very Dark Strong',color:'#8b4513', bg:'rgba(139,69,19,0.12)'  },
+};
+
+function parseParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    batch:  p.get('b')   || '',
+    date:   p.get('d')   || '',
+    grade:  p.get('g')   || '',
+    sap:    p.get('sap') || '',
+    syrup:  p.get('syr') || '',
+    loc:    p.get('loc') || '',
+    taps:   p.get('taps')|| '',
+    season: p.get('s')   || '',
+    notes:  p.get('n')   || '',
+    units:  p.get('u')   || 'gal',
+  };
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  try {
+    const dt = new Date(d + 'T12:00:00');
+    return dt.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+  } catch { return d; }
+}
+
+function ratio(sap, syr) {
+  const s = parseFloat(sap), y = parseFloat(syr);
+  if (!s || !y) return null;
+  return (s / y).toFixed(1) + ':1';
+}
+
+function render(q) {
+  const grade = GRADES[q.grade] || null;
+  const batchLabel = q.batch ? `Batch #${q.batch}` : 'Batch';
+  const dateLabel  = formatDate(q.date);
+  const r = ratio(q.sap, q.syrup);
+  const u = q.units === 'L' ? 'L' : 'gal';
+
+  if (!q.batch && !q.date && !q.grade) {
+    document.getElementById('content').innerHTML = `
+      <div class="missing">
+        <h2>No batch data</h2>
+        <p>This link doesn't contain batch information. Generate a label from the SweetRun app to create a valid provenance link.</p>
+      </div>`;
+    return;
+  }
+
+  const batchPageUrl = window.location.href;
+
+  document.getElementById('content').innerHTML = `
+    <div class="header">
+      <div class="header-inner">
+        <div class="brand">
+          <div class="brand-leaf">🍁</div>
+          <div>
+            <div class="brand-name">SweetRun</div>
+            <div class="brand-sub">Maple Provenance</div>
+          </div>
+        </div>
+        <div class="batch-pill">${batchLabel}${q.season ? ' · ' + q.season : ''}</div>
+      </div>
+    </div>
+
+    ${grade ? `
+    <div class="grade-band" style="background:${grade.bg}">
+      <div class="grade-swatch" style="background:${grade.color}"></div>
+      <div>
+        <div class="grade-label">USDA Grade A</div>
+        <div class="grade-name" style="color:${grade.color}">${grade.name}</div>
+      </div>
+    </div>` : ''}
+
+    <div class="stats">
+      ${q.sap ? `<div class="stat">
+        <div class="stat-label">Sap Collected</div>
+        <div class="stat-val">${parseFloat(q.sap).toLocaleString()}</div>
+        <div class="stat-unit">${u}</div>
+      </div>` : ''}
+      ${q.syrup ? `<div class="stat">
+        <div class="stat-label">Syrup Produced</div>
+        <div class="stat-val">${parseFloat(q.syrup).toFixed(1)}</div>
+        <div class="stat-unit">${u}</div>
+      </div>` : ''}
+      ${r ? `<div class="stat">
+        <div class="stat-label">Sap-to-Syrup Ratio</div>
+        <div class="stat-val">${r}</div>
+        <div class="stat-unit">gallons sap per gallon syrup</div>
+      </div>` : ''}
+      ${q.taps ? `<div class="stat">
+        <div class="stat-label">Trees Tapped</div>
+        <div class="stat-val">${parseInt(q.taps).toLocaleString()}</div>
+        <div class="stat-unit">maple trees</div>
+      </div>` : ''}
+    </div>
+
+    <div class="details">
+      ${dateLabel ? `<div class="detail-row">
+        <div class="detail-icon" style="background:rgba(45,212,167,0.1)">📅</div>
+        <div class="detail-text">Boiled <strong>${dateLabel}</strong></div>
+      </div>` : ''}
+      ${q.loc ? `<div class="detail-row">
+        <div class="detail-icon" style="background:rgba(45,212,167,0.1)">📍</div>
+        <div class="detail-text">Sugarbush in <strong>${q.loc}</strong></div>
+      </div>` : ''}
+      ${q.notes ? `<div class="detail-row">
+        <div class="detail-icon" style="background:rgba(255,255,255,0.05)">📝</div>
+        <div class="detail-text">${q.notes}</div>
+      </div>` : ''}
+      <div class="detail-row">
+        <div class="detail-icon" style="background:rgba(45,212,167,0.08)">🔒</div>
+        <div class="detail-text" style="font-size:11px;color:#3d5068">Data encoded in this QR — never stored in the cloud. Tracked by the producer with <a href="https://sweetrun.app" style="color:#2dd4a7;font-weight:700">SweetRun</a>.</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>
+        <div class="footer-qr">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://sweetrun.app')}&color=1a3d2b&bgcolor=ffffff" alt="sweetrun.app"/>
+        </div>
+      </div>
+      <div class="footer-copy">
+        Want to track your own sugarbush?<br/>
+        <a href="https://sweetrun.app">sweetrun.app</a> — $49/season
+      </div>
+    </div>
+  `;
+}
+
+render(parseParams());
+</script>
+</body>
+</html>
