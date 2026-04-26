@@ -44,7 +44,8 @@ self.addEventListener('fetch', event => {
   // Always hit the network for weather/geo APIs — these need live data
   const isApi = url.hostname === 'api.open-meteo.com'
              || url.hostname === 'geocoding-api.open-meteo.com'
-             || url.hostname === 'api.qrserver.com';
+             || url.hostname === 'api.qrserver.com'
+             || url.hostname === 'nominatim.openstreetmap.org';
 
   if (isApi) {
     event.respondWith(

@@ -1813,6 +1813,7 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
   const [batches,   setBatches]  = useState(() => ls.get('sg_batches', []));
   const [showForm,  setShowForm] = useState(false);
   const [bf, setBf] = useState({ date: new Date().toISOString().split('T')[0], sapIn:'', syrupOut:'', grade:'amber', loc:'', notes:'' });
+  const [locLoading, setLocLoading] = useState(false);
   const [laborHrs,  setLaborHrs]  = useState(() => ls.get('sg_laborhrs', 0));
   const [laborRate, setLaborRate] = useState(() => ls.get('sg_laborrate', 15));
   const [spoutCost, setSpoutCost] = useState(() => ls.get('sg_spoutcost', 0));
@@ -1843,8 +1844,32 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
   useEffect(() => { setEvapRate(rate); }, [rate]);
   useEffect(() => { ls.set('sg_batches', batches); }, [batches]);
 
+  const gpsLoc = () => {
+    if (!navigator.geolocation) return;
+    setLocLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        try {
+          const r = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          const d = await r.json();
+          const a = d.address || {};
+          const city  = a.city || a.town || a.village || a.hamlet || a.county || '';
+          const region = a.state || a.province || a.region || '';
+          const loc = [city, region].filter(Boolean).join(', ');
+          if (loc) setBf(p => ({ ...p, loc }));
+        } catch(e) {}
+        setLocLoading(false);
+      },
+      () => setLocLoading(false),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const addBatch = () => {
-    if (!bf.sapIn) return;
+    if (!bf.syrupOut && !bf.sapIn) return;
     setBatches(p => [...p, { ...bf, id:Date.now() }]);
     setBf({ date:new Date().toISOString().split('T')[0], sapIn:'', syrupOut:'', grade:'amber', loc:'', notes:'' });
     setShowForm(false);
@@ -2058,7 +2083,14 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
               <div><div className="field-label">{t(lang,'syrupOut')} ({u})</div><NumInput value={bf.syrupOut} onChange={v=>setBf(p=>({...p,syrupOut:v}))} min={0} step={0.1} /></div>
             </div>
             <div className="two-col" style={{ marginBottom:8 }}>
-              <div><div className="field-label">Location</div><input type="text" value={bf.loc} onChange={e=>setBf(p=>({...p,loc:e.target.value}))} placeholder="e.g. Craftsbury, VT" /></div>
+              <div><div className="field-label">Location</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <input type="text" value={bf.loc} onChange={e=>setBf(p=>({...p,loc:e.target.value}))} placeholder="e.g. Craftsbury, VT" style={{ flex:1 }} />
+                  <button onClick={gpsLoc} disabled={locLoading} title="Use my location" style={{ background:'rgba(45,212,167,0.1)', border:'1px solid rgba(45,212,167,0.25)', borderRadius:8, padding:'0 10px', fontSize:16, cursor:'pointer', color: locLoading ? '#3d5068' : '#2dd4a7', flexShrink:0 }}>
+                    {locLoading ? '⏳' : '📍'}
+                  </button>
+                </div>
+              </div>
               <div><div className="field-label">{t(lang,'notes')}</div><input type="text" value={bf.notes} onChange={e=>setBf(p=>({...p,notes:e.target.value}))} placeholder={t(lang,'optional')} /></div>
             </div>
             <div className="two-col">
