@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SweetRun — Share Your Feedback</title>
+<meta name="description" content="Help shape SweetRun. Tell Damian what to build next."/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:#07090f;color:#c9d1d9;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:0 0 60px;
+  }
+
+  /* ── HEADER ── */
+  .hero{
+    width:100%;background:linear-gradient(150deg,#1e4a34 0%,#0d2016 60%,#07090f 100%);
+    padding:28px 24px 24px;text-align:center;position:relative;overflow:hidden;
+  }
+  .hero::before{
+    content:'';position:absolute;inset:0;
+    background:radial-gradient(ellipse at 80% 10%,rgba(212,131,26,0.2) 0%,transparent 55%),
+               radial-gradient(ellipse at 10% 90%,rgba(45,212,167,0.07) 0%,transparent 50%);
+  }
+  .hero-inner{position:relative;max-width:480px;margin:0 auto;}
+  .brand{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .brand-leaf{font-size:24px;}
+  .brand-name{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;}
+  .hero-title{font-size:26px;font-weight:900;color:#fff;letter-spacing:-0.6px;line-height:1.15;margin-bottom:8px;}
+  .hero-title em{color:#2dd4a7;font-style:normal;}
+  .hero-sub{font-size:14px;color:rgba(255,255,255,0.6);line-height:1.6;max-width:360px;margin:0 auto;}
+  .hero-sub strong{color:rgba(255,255,255,0.85);}
+
+  /* ── CARD ── */
+  .card{
+    width:100%;max-width:480px;
+    background:#0d1521;border-radius:18px;
+    margin:20px 16px 0;
+    box-shadow:0 12px 48px rgba(0,0,0,0.5);
+    overflow:hidden;
+  }
+
+  /* ── FORM ── */
+  .form{padding:24px;}
+  .field{margin-bottom:20px;}
+  .field-label{
+    font-size:11px;font-weight:800;letter-spacing:0.14em;
+    text-transform:uppercase;color:#3d5068;margin-bottom:7px;display:block;
+  }
+  .field-label span{color:#2dd4a7;}
+  input[type=text],input[type=email],input[type=number],textarea,select{
+    width:100%;background:#07090f;border:1px solid #1e2e3e;
+    border-radius:10px;padding:11px 14px;
+    font-size:15px;color:#c9d1d9;font-family:inherit;
+    outline:none;resize:vertical;transition:border-color 0.2s;
+    -webkit-appearance:none;
+  }
+  input:focus,textarea:focus,select:focus{border-color:#2dd4a7;}
+  textarea{min-height:80px;line-height:1.5;}
+  ::placeholder{color:#2a3a4a;}
+
+  /* tap-size radio pills */
+  .taps-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .tap-opt{position:relative;}
+  .tap-opt input{position:absolute;opacity:0;width:0;height:0;}
+  .tap-opt label{
+    display:block;text-align:center;padding:8px 4px;
+    background:#07090f;border:1px solid #1e2e3e;border-radius:9px;
+    font-size:13px;font-weight:600;color:#5a6a7a;cursor:pointer;
+    transition:all 0.15s;
+  }
+  .tap-opt input:checked + label{
+    background:rgba(45,212,167,0.12);border-color:#2dd4a7;color:#2dd4a7;
+  }
+
+  /* submit */
+  .btn-submit{
+    width:100%;background:linear-gradient(135deg,#2d6a4f,#1a3d2b);
+    color:#fff;border:none;border-radius:11px;
+    padding:15px;font-size:16px;font-weight:800;
+    cursor:pointer;font-family:inherit;letter-spacing:0.01em;
+    transition:opacity 0.2s;margin-top:4px;
+  }
+  .btn-submit:hover{opacity:0.9;}
+  .btn-submit:disabled{opacity:0.5;cursor:not-allowed;}
+
+  /* ── THANK YOU ── */
+  .thankyou{
+    display:none;padding:40px 28px;text-align:center;
+  }
+  .thankyou-icon{font-size:48px;margin-bottom:14px;}
+  .thankyou-title{font-size:22px;font-weight:900;color:#fff;margin-bottom:8px;}
+  .thankyou-sub{font-size:14px;color:rgba(255,255,255,0.55);line-height:1.6;margin-bottom:20px;}
+  .btn-back{
+    display:inline-block;background:rgba(45,212,167,0.1);
+    border:1px solid rgba(45,212,167,0.3);border-radius:9px;
+    padding:10px 22px;font-size:14px;font-weight:700;color:#2dd4a7;
+    text-decoration:none;
+  }
+
+  /* ── FOOTER ── */
+  .page-footer{
+    max-width:480px;width:100%;padding:20px 16px 0;
+    text-align:center;font-size:11px;color:#2a3a4a;line-height:1.7;
+  }
+  .page-footer a{color:#2dd4a7;text-decoration:none;font-weight:700;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="brand">
+      <span class="brand-leaf">🍁</span>
+      <span class="brand-name">SweetRun</span>
+    </div>
+    <div class="hero-title">You help build<br/><em>what comes next.</em></div>
+    <div class="hero-sub">
+      SweetRun is a one-person project. <strong>Every feature in the app came from a real conversation with a producer.</strong> Tell me what your season looks like and what would make this worth $49 to you — I read every reply.
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <form class="form" id="feedbackForm" onsubmit="submitForm(event)">
+
+    <div class="field">
+      <label class="field-label" for="taps">How many taps do you run? <span>(pick one)</span></label>
+      <div class="taps-grid">
+        <div class="tap-opt"><input type="radio" name="taps" id="t1" value="Under 100"/><label for="t1">Under 100</label></div>
+        <div class="tap-opt"><input type="radio" name="taps" id="t2" value="100–300"/><label for="t2">100–300</label></div>
+        <div class="tap-opt"><input type="radio" name="taps" id="t3" value="300–1,000"/><label for="t3">300–1k</label></div>
+        <div class="tap-opt"><input type="radio" name="taps" id="t4" value="1,000+"/><label for="t4">1,000+</label></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="headache">What's your biggest production headache right now?</label>
+      <textarea id="headache" name="headache" placeholder="e.g. never know when to stop, fuel costs killing margins, hard to track batches…"></textarea>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="feature">What should we build next?</label>
+      <textarea id="feature" name="feature" placeholder="Any feature, fix, or idea — nothing too small or too wild…"></textarea>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="name">Your name <span>(optional — only if you want a reply)</span></label>
+      <input type="text" id="name" name="name" placeholder="e.g. John, Ferme Leblanc…"/>
+    </div>
+
+    <div class="field" style="margin-bottom:22px;">
+      <label class="field-label" for="email">Email <span>(optional)</span></label>
+      <input type="email" id="email" name="email" placeholder="you@example.com"/>
+    </div>
+
+    <!-- honeypot -->
+    <input type="text" name="_honey" style="display:none"/>
+
+    <button class="btn-submit" type="submit" id="submitBtn">Send feedback →</button>
+  </form>
+
+  <div class="thankyou" id="thankyou">
+    <div class="thankyou-icon">🍁</div>
+    <div class="thankyou-title">Thank you — seriously.</div>
+    <div class="thankyou-sub">I read every reply and it shapes what gets built next. If you left your email I'll follow up before next season.</div>
+    <a href="https://sweetrun.app" class="btn-back">Back to sweetrun.app →</a>
+  </div>
+</div>
+
+<div class="page-footer">
+  <a href="https://sweetrun.app">sweetrun.app</a> &nbsp;·&nbsp; $49/season &nbsp;·&nbsp; No account. No cloud. Your data stays yours.
+</div>
+
+<script>
+async function submitForm(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+
+  const form = document.getElementById('feedbackForm');
+  const data = {
+    taps:     document.querySelector('input[name="taps"]:checked')?.value || 'Not specified',
+    headache: document.getElementById('headache').value || '—',
+    feature:  document.getElementById('feature').value || '—',
+    name:     document.getElementById('name').value || 'Anonymous',
+    email:    document.getElementById('email').value || 'Not provided',
+    _subject: 'SweetRun Feedback — ' + (document.getElementById('name').value || 'Anonymous producer'),
+  };
+
+  try {
+    const res = await fetch('https://formsubmit.co/ajax/damian.brockway@gmail.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const json = await res.json();
+    if (json.success === 'true' || json.success === true) {
+      form.style.display = 'none';
+      document.getElementById('thankyou').style.display = 'block';
+    } else {
+      throw new Error('failed');
+    }
+  } catch {
+    // fallback: open mailto
+    const body = encodeURIComponent(
+      `Taps: ${data.taps}\n\nBiggest headache:\n${data.headache}\n\nBuild next:\n${data.feature}\n\nFrom: ${data.name} (${data.email})`
+    );
+    window.location.href = `mailto:damian.brockway@gmail.com?subject=${encodeURIComponent(data._subject)}&body=${body}`;
+    btn.textContent = 'Send feedback →';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
