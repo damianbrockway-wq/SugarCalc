@@ -448,6 +448,39 @@
     .qr-label { font-size: 16px; color: rgba(255,255,255,0.75); margin-top: 8px; }
     .qr-url { font-size: 20px; font-weight: 700; color: var(--amber-light); margin-top: 4px; }
 
+    /* ── INSTALL SECTION ── */
+    .install-section {
+      background: #0d1a14; color: #fff;
+      padding: 80px 24px; text-align: center;
+    }
+    .install-cards {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 24px; max-width: 760px; margin: 0 auto;
+    }
+    .install-card {
+      background: #132010; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 28px 24px; text-align: left;
+    }
+    .install-phone-icon { font-size: 28px; margin-bottom: 6px; }
+    .install-platform {
+      font-size: 13px; font-weight: 800; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--green-light); margin-bottom: 20px;
+    }
+    .install-steps { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+    .install-steps li { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.5; }
+    .install-steps li strong { color: #fff; }
+    .install-steps li em { color: rgba(255,255,255,0.45); font-style: normal; font-size: 12px; }
+    .step-num {
+      flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--green-mid); color: #fff;
+      font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+      margin-top: 1px;
+    }
+    .step-icon { font-size: 16px; }
+    @media (max-width: 600px) {
+      .install-cards { grid-template-columns: 1fr; }
+    }
+
     /* ── FOOTER ── */
     footer {
       background: var(--dark); color: rgba(255,255,255,0.5);
@@ -993,6 +1026,71 @@
     </div>
     <div class="qr-label">Point your camera here</div>
     <div class="qr-url">sweetrun.app</div>
+  </div>
+</section>
+
+<!-- INSTALL SECTION -->
+<section class="install-section" id="install">
+  <div class="container">
+    <div class="fade-in">
+      <div class="section-label" style="color:var(--green-light);">No App Store. No Download.</div>
+      <h2 class="section-title" style="color:#fff;">Add SweetRun to your<br/>home screen in 3 taps.</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:15px;max-width:440px;margin:0 auto 40px;">
+        SweetRun runs entirely in your browser — no App Store, no account needed. Add it to your home screen and it works exactly like an app, including offline.
+      </p>
+    </div>
+
+    <div class="install-cards fade-in">
+
+      <!-- iPhone -->
+      <div class="install-card">
+        <div class="install-phone-icon">🍎</div>
+        <div class="install-platform">iPhone / iPad</div>
+        <ol class="install-steps">
+          <li>
+            <span class="step-num">1</span>
+            <span>Open <strong>sweetrun.app</strong> in <strong>Safari</strong> <em>(must be Safari, not Chrome)</em></span>
+          </li>
+          <li>
+            <span class="step-num">2</span>
+            <span>Tap the <strong>Share button</strong> — the box with an arrow pointing up <span class="step-icon">⬆</span> at the bottom of the screen</span>
+          </li>
+          <li>
+            <span class="step-num">3</span>
+            <span>Scroll down and tap <strong>"Add to Home Screen"</strong></span>
+          </li>
+          <li>
+            <span class="step-num">4</span>
+            <span>Tap <strong>"Add"</strong> — SweetRun will appear on your home screen like any app</span>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Android -->
+      <div class="install-card">
+        <div class="install-phone-icon">🤖</div>
+        <div class="install-platform">Android</div>
+        <ol class="install-steps">
+          <li>
+            <span class="step-num">1</span>
+            <span>Open <strong>sweetrun.app</strong> in <strong>Chrome</strong></span>
+          </li>
+          <li>
+            <span class="step-num">2</span>
+            <span>Tap the <strong>three-dot menu</strong> <span class="step-icon">⋮</span> in the top-right corner</span>
+          </li>
+          <li>
+            <span class="step-num">3</span>
+            <span>Tap <strong>"Add to Home screen"</strong></span>
+          </li>
+          <li>
+            <span class="step-num">4</span>
+            <span>Tap <strong>"Add"</strong> — done. SweetRun is now on your home screen.</span>
+          </li>
+        </ol>
+      </div>
+
+    </div>
   </div>
 </section>
 
