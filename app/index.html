@@ -1077,7 +1077,9 @@ const PAN_SIZES = [
   { label: '3×8 ft (~36 GPH)', area: 24, rate: 36 },
   { label: '3×10 ft (~45 GPH)',area: 30, rate: 45 },
   { label: '4×12 ft (~72 GPH)',area: 48, rate: 72 },
+  { label: 'Custom size…',     area: 0,  rate: 0  },
 ];
+const CUSTOM_PAN_IDX = PAN_SIZES.length - 1;
 const FUELS = [
   { label: 'Firewood (cord)', labelFr: 'Bois de chauffage (corde)', unit: 'cord', unitFr: 'corde', spu: 200 },
   { label: 'Oil (gallon)',    labelFr: 'Huile (gallon)',             unit: 'gal',  unitFr: 'gal',   spu: 10  },
@@ -1655,7 +1657,7 @@ function SapTab({ sapBrix, setSapBrix, trees, units, lang='en' }) {
         </div>
         <div className="two-col" style={{ marginBottom:12 }}>
           <div><div className="field-label">{t(lang,'sapFieldLabel')} ({u})</div><NumInput value={sapGal} onChange={setSapGal} min={1} max={100000} step={1} /></div>
-          <div><div className="field-label">{t(lang,'sapBrix')}</div><input type="number" value={sapBrix} onChange={e=>setSapBrix(parseFloat(e.target.value)||0)} min={0.5} max={10} step={0.1} /></div>
+          <div><div className="field-label">{t(lang,'sapBrix')}</div><input type="number" value={sapBrix} onChange={e=>setSapBrix(parseFloat(e.target.value)||0)} onFocus={e=>e.target.select()} min={0.5} max={10} step={0.1} /></div>
         </div>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, padding:'10px 0' }}>
           <div style={{ textAlign:'center' }}>
@@ -1807,8 +1809,10 @@ async function _downloadBatchLabel(b, batchNum, season, trees, units) {
 
 // ─── EVAP TAB ─────────────────────────────────────────────────────────────────
 function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelType, fuelCost, setFuelCost, season, trees, lang='en' }) {
-  const [panIdx,    setPanIdx]   = useState(0);
+  const [panIdx,    setPanIdx]   = useState(() => ls.get('sg_panIdx', 0));
   const [customR,   setCustomR]  = useState('');
+  const [panW,      setPanW]     = useState(() => ls.get('sg_panW', ''));
+  const [panH,      setPanH]     = useState(() => ls.get('sg_panH', ''));
   const [sapGal,    setSapGal]   = useState(500);
   const [batches,   setBatches]  = useState(() => ls.get('sg_batches', []));
   const [showForm,  setShowForm] = useState(false);
@@ -1822,6 +1826,9 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
   const [otherCost, setOtherCost] = useState(() => ls.get('sg_othercost', 0));
   const [retailMargin,      setRetailMargin]      = useState(() => ls.get('sg_retailmargin', 40));
   const [retailCostOverride,setRetailCostOverride] = useState('');
+  useEffect(()=>{ ls.set('sg_panIdx', panIdx); },[panIdx]);
+  useEffect(()=>{ ls.set('sg_panW',   panW);   },[panW]);
+  useEffect(()=>{ ls.set('sg_panH',   panH);   },[panH]);
   useEffect(()=>{ ls.set('sg_retailmargin', retailMargin); },[retailMargin]);
   useEffect(()=>{ ls.set('sg_laborhrs',  laborHrs);  },[laborHrs]);
   useEffect(()=>{ ls.set('sg_laborrate', laborRate); },[laborRate]);
@@ -1830,9 +1837,13 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
   useEffect(()=>{ ls.set('sg_filtercost',filterCost);},[filterCost]);
   useEffect(()=>{ ls.set('sg_othercost', otherCost); },[otherCost]);
 
-  const pan  = PAN_SIZES[panIdx];
-  const rate = customR > 0 ? parseFloat(customR) : pan.rate;
-  const eff  = (rate / pan.area).toFixed(2);
+  const pan        = PAN_SIZES[panIdx];
+  const isCustomPan = panIdx === CUSTOM_PAN_IDX;
+  const customArea  = isCustomPan ? (parseFloat(panW)||0) * (parseFloat(panH)||0) : 0;
+  const customCalcR = isCustomPan ? Math.round(customArea * 1.5) : 0;
+  const rate = customR > 0 ? parseFloat(customR) : (isCustomPan ? customCalcR : pan.rate);
+  const area = isCustomPan ? customArea : pan.area;
+  const eff  = area > 0 ? (rate / area).toFixed(2) : '—';
   const sy   = syrupY(sapGal, sapBrix);
   const bh   = boilTime(sapGal, sapBrix, rate);
   const u    = units === 'L' ? 'L' : 'gal';
@@ -1886,8 +1897,25 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
         <select value={panIdx} onChange={e=>{setPanIdx(+e.target.value);setCustomR('');}} style={{ marginBottom:12 }}>
           {PAN_SIZES.map((p,i)=><option key={i} value={i}>{p.label}</option>)}
         </select>
+        {isCustomPan && (
+          <div className="two-col" style={{ marginBottom:12 }}>
+            <div>
+              <div className="field-label">Width (ft)</div>
+              <NumInput value={panW} onChange={setPanW} min={1} max={20} step={0.5} placeholder="e.g. 2" />
+            </div>
+            <div>
+              <div className="field-label">Length (ft)</div>
+              <NumInput value={panH} onChange={setPanH} min={1} max={30} step={0.5} placeholder="e.g. 6" />
+            </div>
+          </div>
+        )}
+        {isCustomPan && customArea > 0 && (
+          <div style={{ fontSize:12, color:'#e0a44a', marginBottom:10 }}>
+            {customArea} ft² → estimated <strong>{customCalcR} GPH</strong> at 1.5 gal/ft²/hr
+          </div>
+        )}
         <div className="field-label">{t(lang,'customRate')}</div>
-        <NumInput value={customR} onChange={setCustomR} min={1} max={500} step={1} placeholder={lang==='fr'?`Laisser vide — ~${pan.rate} GPH`:`Leave blank for ~${pan.rate} GPH`} />
+        <NumInput value={customR} onChange={setCustomR} min={1} max={500} step={1} placeholder={isCustomPan && customCalcR > 0 ? `Leave blank for ~${customCalcR} GPH` : lang==='fr'?`Laisser vide — ~${pan.rate} GPH`:`Leave blank for ~${pan.rate} GPH`} />
         <div className="result-box orange" style={{ marginTop:12 }}>
           <div className="two-col">
             <div><div className="result-label" style={{ color:'#e0a44a' }}>{t(lang,'boilRate')}</div><div className="result-value" style={{ color:'#e0a44a' }}>{rate} GPH</div></div>
@@ -1903,7 +1931,7 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
         </div>
         <div className="two-col" style={{ marginBottom:12 }}>
           <div><div className="field-label">{t(lang,'sapToBoil')} ({u})</div><NumInput value={sapGal} onChange={setSapGal} min={1} max={100000} step={1} /></div>
-          <div><div className="field-label">{t(lang,'sapBrix')}</div><input type="number" value={sapBrix} onChange={e=>setSapBrix(parseFloat(e.target.value)||0)} min={0.5} max={10} step={0.1} /></div>
+          <div><div className="field-label">{t(lang,'sapBrix')}</div><input type="number" value={sapBrix} onChange={e=>setSapBrix(parseFloat(e.target.value)||0)} onFocus={e=>e.target.select()} min={0.5} max={10} step={0.1} /></div>
         </div>
         <div className="result-box orange">
           <div className="two-col">
@@ -2102,6 +2130,12 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
         {batches.length===0 && !showForm && (
           <div style={{ textAlign:'center', color:'#3d5068', padding:'16px 0', fontSize:14 }}>{t(lang,'noBatchesLong')}</div>
         )}
+        {batches.length>0 && (
+          <div style={{ fontSize:11, color:'#3d5068', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
+            <span>🏷️</span>
+            <span>Tap <strong style={{color:'#2dd4a7'}}>Label</strong> on any batch to download a printable provenance label with a QR code.</span>
+          </div>
+        )}
         {batches.map((b,i) => {
           const bg = BATCH_GRADES[b.grade] || BATCH_GRADES.amber;
           return (
@@ -2113,9 +2147,9 @@ function EvapTab({ sapBrix, setSapBrix, units, setEvapRate, fuelType, setFuelTyp
               </div>
               <button
                 onClick={()=>_downloadBatchLabel(b, i+1, season, trees, units)}
-                title="Download batch label PNG"
-                style={{ background:'rgba(45,212,167,0.1)', border:'1px solid rgba(45,212,167,0.25)', borderRadius:7, padding:'5px 9px', fontSize:13, color:'#2dd4a7', cursor:'pointer', flexShrink:0 }}>
-                🏷️
+                title="Download provenance label PNG"
+                style={{ background:'rgba(45,212,167,0.1)', border:'1px solid rgba(45,212,167,0.25)', borderRadius:7, padding:'5px 10px', fontSize:11, fontWeight:700, color:'#2dd4a7', cursor:'pointer', flexShrink:0, letterSpacing:'0.03em', lineHeight:1.3, textAlign:'center' }}>
+                🏷️<br/>Label
               </button>
               <button className="delete-btn" onClick={()=>setBatches(p=>p.filter((_,j)=>j!==i))}><I.trash size={15} /></button>
             </div>
@@ -2152,7 +2186,7 @@ function ROTab({ sapBrix, setSapBrix, evapRate, fuelType, fuelCost, units, lang=
         </div>
         <div className="two-col" style={{ marginBottom:10 }}>
           <div><div className="field-label">{t(lang,'inputSap')} ({u})</div><NumInput value={inSap} onChange={setInSap} min={1} max={100000} step={1} /></div>
-          <div><div className="field-label">{t(lang,'sapBrix')}</div><input type="number" value={sapBrix} onChange={e=>setSapBrix(parseFloat(e.target.value)||0)} min={0.5} max={10} step={0.1} /></div>
+          <div><div className="field-label">{t(lang,'sapBrix')}</div><input type="number" value={sapBrix} onChange={e=>setSapBrix(parseFloat(e.target.value)||0)} onFocus={e=>e.target.select()} min={0.5} max={10} step={0.1} /></div>
         </div>
         <div className="field-label">{t(lang,'targetBrix')}</div>
         <NumInput value={tgtBrix} onChange={setTgtBrix} min={1} max={20} step={0.5} />
@@ -2550,15 +2584,18 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
 
 // ─── TAPPING TAB ──────────────────────────────────────────────────────────────
 function TappingTab({ sapBrix, trees, setTrees, units, lang='en' }) {
-  const [dbh,      setDbh]      = useState(14);
-  const [vacuum,   setVacuum]   = useState('Gravity / Buckets');
-  const [spoutIdx, setSpoutIdx] = useState(0);
+  const [dbh,      setDbh]      = useState(() => ls.get('sg_dbh', 14));
+  const [vacuum,   setVacuum]   = useState(() => ls.get('sg_vacuum', 'Gravity / Buckets'));
+  const [spoutIdx, setSpoutIdx] = useState(() => ls.get('sg_spoutidx', 0));
   const [treeNotes, setTreeNotes] = useState(() => ls.get('sg_treenotes', []));
   const [tnForm, setTnForm] = useState({ tree:'', obs:'', date: new Date().toLocaleDateString() });
   const [showTN, setShowTN] = useState(false);
   const [rotEntries, setRotEntries] = useState(() => ls.get('sg_rotation', []));
   const [rotForm, setRotForm] = useState({ tree:'', side:'N', year:new Date().getFullYear() });
   const [showRot, setShowRot] = useState(false);
+  useEffect(() => { ls.set('sg_dbh',      dbh);      }, [dbh]);
+  useEffect(() => { ls.set('sg_vacuum',   vacuum);   }, [vacuum]);
+  useEffect(() => { ls.set('sg_spoutidx', spoutIdx); }, [spoutIdx]);
   useEffect(() => { ls.set('sg_treenotes', treeNotes); }, [treeNotes]);
   useEffect(() => { ls.set('sg_rotation', rotEntries); }, [rotEntries]);
   const addRotEntry = () => {
