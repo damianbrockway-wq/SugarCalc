@@ -2578,6 +2578,59 @@ function FinishTab({ waterBP, setWaterBP, lang='en' }) {
           250 mL ≈ 0.066 gal · 500 mL ≈ 0.132 gal · 1 L ≈ 0.264 gal · 1 qt ≈ 0.25 gal · ½ gal ≈ 0.5 gal · 1 gal jug = 1 gal
         </div>
       </div>
+
+      {/* ── CANDY MAKING ── */}
+      <div className="card">
+        <div className="card-title">
+          <CardIcon bg="#2b1a0d" icon="star" />
+          <div>
+            <div>Maple Candy Temperatures</div>
+            <div style={{ fontSize:12, color:'#5a6a7a', fontWeight:400 }}>Adjusted for your altitude · based on {fmt(waterBP,1)}°F boiling point</div>
+          </div>
+        </div>
+
+        {/* Target temp grid */}
+        {[
+          { name:'Maple Cream / Butter',  offset:22, color:'#f4a44a', desc:'Cook to temp, cool to ~70°F, stir until thick and creamy. Spreadable.' },
+          { name:'Maple Taffy',           offset:28, color:'#e0a44a', desc:'Pour onto packed snow or ice. Pull and stretch while warm.' },
+          { name:'Molded Candy',          offset:34, color:'#2dd4a7', desc:'Cook to temp, cool to ~160°F, stir until it begins to granulate, pour into molds quickly.' },
+          { name:'Maple Sugar (granulated)', offset:45, color:'#c990ff', desc:'Cook to temp, stir vigorously while cooling until fully dry and granulated.' },
+        ].map(c => (
+          <div key={c.name} style={{ background:'#0d1521', borderRadius:10, padding:'12px 14px', marginBottom:10, border:`1px solid rgba(255,255,255,0.06)` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}>
+              <div style={{ fontWeight:700, fontSize:14, color:'#e6edf3' }}>{c.name}</div>
+              <div style={{ fontWeight:900, fontSize:22, color:c.color }}>{fmt(waterBP + c.offset, 1)}°F</div>
+            </div>
+            <div style={{ fontSize:11, color:'#3d5068', marginBottom:3 }}>
+              BP + {c.offset}°F &nbsp;·&nbsp; {fmt((waterBP + c.offset - 32)*5/9, 1)}°C
+            </div>
+            <div style={{ fontSize:12, color:'#5a6a7a', lineHeight:1.5 }}>{c.desc}</div>
+          </div>
+        ))}
+
+        {/* Molded candy process tip */}
+        <div style={{ background:'rgba(45,212,167,0.06)', border:'1px solid rgba(45,212,167,0.18)', borderRadius:10, padding:'12px 14px', marginTop:4 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:'#2dd4a7', marginBottom:6 }}>🍬 Molded Candy Step-by-Step</div>
+          {[
+            { s:'Heat syrup', d:`Bring to ${fmt(waterBP + 34, 1)}°F (BP + 34°F). Use a heavy pot — syrup foams up significantly.` },
+            { s:'Stop the boil', d:'Remove from heat immediately when temp is reached. Do not stir yet.' },
+            { s:'Cool undisturbed', d:'Let cool to ~160°F without stirring. Stirring too early causes grainy texture.' },
+            { s:'Stir to granulate', d:'Stir vigorously with a wooden spoon or stand mixer. It will lighten in color and thicken rapidly.' },
+            { s:'Pour into molds quickly', d:'Once it starts to set, pour immediately. It hardens fast — have molds ready before you start stirring.' },
+            { s:'Cool & release', d:'Let sit 5–10 min until firm. Pop out of molds and enjoy. Store in a cool, dry place.' },
+          ].map((item, i) => (
+            <div key={i} style={{ display:'flex', gap:10, marginBottom:8 }}>
+              <div style={{ flexShrink:0, width:20, height:20, borderRadius:'50%', background:'rgba(45,212,167,0.15)', border:'1px solid rgba(45,212,167,0.3)', color:'#2dd4a7', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', marginTop:1 }}>{i+1}</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5 }}><strong style={{ color:'#c9d1d9' }}>{item.s} — </strong>{item.d}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize:11, color:'#3d5068', marginTop:10, lineHeight:1.7 }}>
+          <span style={{ color:'#5a6a7a', fontWeight:600 }}>All temps above auto-adjust for your altitude.</span> Update your water boiling point at the top of this tab if you move to a different elevation.
+        </div>
+      </div>
+
     </div>
   );
 }
