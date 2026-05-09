@@ -1,15 +1,15 @@
-// SweetRun Service Worker — v1
+// SweetRun Service Worker — v2
 // Cache name: bump this string on every deploy to force all clients to update cleanly.
-// Example: 'sweetrun-v1' → 'sweetrun-v2'
 // localStorage data is NEVER touched by this file — it is purely cache management.
 
-const CACHE      = 'sweetrun-v1';
+const CACHE      = 'sweetrun-v2';
 const TILE_CACHE = 'sweetrun-tiles-v1';   // kept separately — never auto-purged on app update
 
 // Core app shell — everything SweetRun needs to run fully offline
 const ASSETS = [
   '/app/',
   '/app/index.html',
+  '/app/icon-512.png',
 ];
 
 // ── Install: cache the app shell ──────────────────────────────────────────────
